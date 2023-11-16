@@ -1,3 +1,12 @@
+# Testing Folders:
+Data/
+Designs/
+Ensembles/
+
+# Testing .py files:
+test.py
+
+# Template .gitignore Items:
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
