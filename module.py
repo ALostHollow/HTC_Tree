@@ -7,6 +7,7 @@ import numpy as np
 import time
 import uuid
 import os
+import warnings
 import json
 import copy
 import matplotlib.pyplot as plt
@@ -393,6 +394,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         return f"<ClassificationNode Object: {part1}, {part2}. {part3}, {part4}>"
     
+    
     # Class Methods:
     def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
@@ -432,7 +434,10 @@ class ClassificationNode(Serializer, Deserializer):
 
                 # Check if sub_node_data is empty:
                 if sub_data.shape[0] == 0:
-                    if verbose: print(f"no data to use for '{self.prediction_title}' at '{branch}'. {sub_data.shape[0]}/{data.shape[0]}")
+                    warnings.warn(
+                        f'''no data to use for '{self.prediction_title}' at '{branch}'. {sub_data.shape[0]}/{data.shape[0]} was usable.
+                        Stopping tree iteration down this branch. Other nodes will be unaffected'''
+                    )
                     continue
 
                 # Run training for each branch:
@@ -445,6 +450,7 @@ class ClassificationNode(Serializer, Deserializer):
                         **kwargs
                     )
         
+
     def Predict(self, input:pd.DataFrame, shallow=False)->pd.DataFrame:
         # Node ensemble making predictions:
         node_predictions = self.ensemble.Predict(input)
@@ -479,6 +485,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         return node_predictions
 
+
     def gernate_design(self)->dict:
         design = {
             "root": self._recursive_generate_design()
@@ -501,6 +508,7 @@ class ClassificationNode(Serializer, Deserializer):
             "branches": map
             }
     
+
     def update_from_json(self, file_path:str, verbose:bool=False)->None:
         # Exceptions:
         if not os.path.exists(file_path):
@@ -556,6 +564,7 @@ class ClassificationNode(Serializer, Deserializer):
                             temp_node.branches[branch][temp_node_titles[title]]
                         )
     
+
     def _collect_data(self, tree_path:str=None)->list:
 
         node_data = {}
@@ -578,6 +587,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         return data_list
     
+
     def graph_weak_learner_performance(self, file_path:str='Weak Learner Plot.png'):
         # TODO Break sub graphs up.. too many nodes will likely make graph unreadable...
 
@@ -648,6 +658,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         # plt.show()
 
+
     def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None)->None:
         '''
         Recursively sets all the ensemble's <train_flag> attribute.
@@ -668,7 +679,7 @@ class ClassificationNode(Serializer, Deserializer):
         # 1. A call that will always train every ensemble: if <force_true> is True
         # 2. Every call will train all ensembles that have not yet been trained: due to ensemble's <ready> attribute being False on __init__ and only being set after being trained.
         # 3. Every call will train all ensembles that were left untrained after a previous (1. call): due to the program being stopped before all models were trained.
-        
+
         if False not in self._recursive_set_train_flags(force_true=force_true, verbose=False, save_on_train=save_on_train, serializer=serializer) and not force_true:
             self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 
@@ -690,8 +701,6 @@ class ClassificationNode(Serializer, Deserializer):
                     flag_list.append(item)
 
         return set(flag_list)
-
-
 
 
     # Static Class Methods:
