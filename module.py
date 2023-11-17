@@ -645,9 +645,20 @@ class ClassificationNode(Serializer, Deserializer):
         ax.set_xticks(x)
         ax.set_xticklabels(
             labels, 
-            fontsize=7,
-            rotation=45,
+            fontsize=6.6,
+            rotation=90,
+            # backgroundcolor="grey"
         )
+        # modify labels
+        i = 0
+        for tl in ax.get_xticklabels():
+            if i == 0: 
+                tl.set_backgroundcolor('gainsboro')
+                i = 1
+            else:
+                tl.set_backgroundcolor('darkgrey')
+                i = 0
+
         # ax.legend(bbox_to_anchor=(0.5, 1.0, 0.1, 0.1), title="Weak Learners")
         ax.legend(
             title="Weak Learners",
