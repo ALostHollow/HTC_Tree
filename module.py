@@ -598,14 +598,12 @@ class ClassificationNode(Serializer, Deserializer):
                 ax.annotate('{:.2f}'.format(height),
                             xy=(rect.get_x() + rect.get_width() / 2, height),
                             xytext=(0, -15),  # 3 points vertical offset
-                            rotation=30,
-                            fontsize=7,
+                            rotation=90,
+                            fontsize=6,
                             textcoords="offset points",
                             ha='center', va='bottom')
 
         data = self._collect_data()
-        print(data)
-        print()
         
         labels = []
         test_acc_by_weak_learner_title = {}
@@ -632,8 +630,6 @@ class ClassificationNode(Serializer, Deserializer):
         for i in range(0, len(x)):
             x[i] = float( float(x[i]) * (w * float(c) + s) )
         
-        print(labels)
-        print(test_acc_by_weak_learner_title)
         for weak_learner_title in test_acc_by_weak_learner_title.keys():
             i = list(test_acc_by_weak_learner_title.keys()).index(weak_learner_title) # the learner's placement in the dict
             place = x - ((w*(c/2))+(w/2)) + (w*(i+1)) # Calculating placement relative to x
@@ -647,14 +643,25 @@ class ClassificationNode(Serializer, Deserializer):
         ax.set_title('Weak Learner Test Accuracy Scores by Classification Node')
         
         ax.set_xticks(x)
-        ax.set_xticklabels(labels)
+        ax.set_xticklabels(
+            labels, 
+            fontsize=7,
+            rotation=45,
+        )
         # ax.legend(bbox_to_anchor=(0.5, 1.0, 0.1, 0.1), title="Weak Learners")
-        ax.legend(title="Weak Learners",loc='upper center', 
-             bbox_to_anchor=(0.5, -0.2),fancybox=False, shadow=False, ncol=3)
+        ax.legend(
+            title="Weak Learners",
+            loc='upper center', 
+            bbox_to_anchor=(0.5, 0.3),
+            fancybox=False, 
+            shadow=False, 
+            ncol=3,
+            framealpha=0.7
+        )
         fig.tight_layout()
         
         fig.set_size_inches(10, 5)
-        fig.savefig(file_path, dpi=100)
+        fig.savefig(file_path, dpi=200)
 
         # plt.show()
 
