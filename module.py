@@ -228,7 +228,8 @@ class Ensemble(Serializer, Deserializer):
         
         # Add Instance Attributes:
         self.models = models
-        self.ready = False  # indicates if models have been trained
+        self.ready = False  # indicates if models can make predictions
+        self.train_flag = True # indicates if models should to be trained
         self.created = time.time() # the time of instance instantiation
 
     # def __str__(self) -> str:
@@ -269,11 +270,12 @@ class Ensemble(Serializer, Deserializer):
             else:   # <- temp model was not better
                 if verbose: print(f"{spaces}New model was not better ({time.time() - training_start_time}s)", flush=True)
 
-        # Mark self as Ready for predictions:
+        # Mark self as Ready for predictions and as not needing training:
         self.ready = True
+        self.train_flag = False
 
         # Build Report String:
-        if verbose: 
+        if verbose:
             self.training_time = time.time() - start_time
             cursor_up_chars = "\033[A" * (len(self.models) + 1) # Move cursor up to where the print above the loop was:
             result_str1 = 'All Weak Learners Trained for'
@@ -376,7 +378,7 @@ class ClassificationNode(Serializer, Deserializer):
         self.input_column = input_column
         self.ensemble=ensemble
         self.branches=branches
-        self.ensemble_path = f"{prediction_title} ensemble-{self.node_id}.pkl"
+        self.ensemble_path = f"Ensembles/{prediction_title} ensemble-{self.node_id}.pkl"
 
         # Save ensemble at new location: TODO make callable...
         if ensemble_path != self.ensemble_path and save_ensembles:
@@ -392,9 +394,20 @@ class ClassificationNode(Serializer, Deserializer):
         return f"<ClassificationNode Object: {part1}, {part2}. {part3}, {part4}>"
     
     # Class Methods:
-    def Train(self, data: pd.DataFrame, retrain_ready_nodes:bool=False, save_on_train:bool=False, verbose:bool=False, serializer:callable=None,  **kwargs):
+    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+        self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
+        
+        self._recursive_train(
+            data=data, 
+            save_on_train=save_on_train,
+            verbose=verbose,
+            serializer=serializer,
+            **kwargs
+        )
+
+    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         # Training node ensemble:
-        if not self.ensemble.ready or retrain_ready_nodes:
+        if self.ensemble.train_flag:
             self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose)
 
             # Save Ensemble:
@@ -424,9 +437,8 @@ class ClassificationNode(Serializer, Deserializer):
 
                 # Run training for each branch:
                 for node in self.branches[branch]:
-                    node.Train(
+                    node._recursive_train(
                         data=sub_data,
-                        retrain_ready_nodes=retrain_ready_nodes,
                         save_on_train=save_on_train,
                         verbose=verbose,
                         serializer=serializer,
@@ -636,6 +648,50 @@ class ClassificationNode(Serializer, Deserializer):
 
         # plt.show()
 
+    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None)->None:
+        '''
+        Recursively sets all the ensemble's <train_flag> attribute.
+        See <_set_train_flags> method for explination on how/why/when this is done.
+        TODO attribute and return descriptions
+        '''
+        # This may be hard to read so I'll try to explain:
+        # Training or not training an ensebmle is decided based on the ensemble's attribute <train_flag>.
+        # If True, the ensemble will be trained.
+
+        # The method <_recursive_set_train_flags> recursively iterates over the tree and will set these flags to True if:
+        #   - The <force_true> parameter is set
+        #   - No ensembles in the tree have the attribute <traing_flag> set to True
+        # Otherwise it doesn't change any of these attributes
+        # These two cases are handle by the first call to the <_recursive_set_train_flags> method, and the second call, respectively.
+
+        # This allows:
+        # 1. A call that will always train every ensemble: if <force_true> is True
+        # 2. Every call will train all ensembles that have not yet been trained: due to ensemble's <ready> attribute being False on __init__ and only being set after being trained.
+        # 3. Every call will train all ensembles that were left untrained after a previous (1. call): due to the program being stopped before all models were trained.
+        
+        if False not in self._recursive_set_train_flags(force_true=force_true, verbose=False, save_on_train=save_on_train, serializer=serializer) and not force_true:
+            self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
+
+    def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs)->set:
+        if force_true: 
+            self.ensemble.train_flag = True
+
+        # Save Ensemble:
+        if save_on_train:
+            if serializer == None:
+                self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
+            else:
+                serializer(self.ensemble, self.ensemble_path, **kwargs)
+
+        flag_list = [self.ensemble.train_flag]
+        for branch in self.branches.keys():
+            for node in self.branches[branch]:
+                for item in node._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs):
+                    flag_list.append(item)
+
+        return set(flag_list)
+
+
 
 
     # Static Class Methods:
@@ -687,7 +743,6 @@ class ClassificationNode(Serializer, Deserializer):
         
         if 'node id' not in structure.keys(): id = None
         else: id = structure['node id']
-
 
         # Building This Node:
         node = ClassificationNode(

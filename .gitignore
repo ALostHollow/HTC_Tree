@@ -2,11 +2,14 @@
 Data/
 Designs/
 Ensembles/
+Graphs/
 
 # Testing .py files:
 test.py
 
-# Template .gitignore Items:
+
+
+# =================== Template .gitignore Items ===================
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
