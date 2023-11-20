@@ -10,9 +10,9 @@ import os
 import warnings
 import json
 import copy
+import math
 import matplotlib.pyplot as plt
-
-
+from matplotlib.lines import Line2D
 # Sklearn Imports:
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -589,92 +589,88 @@ class ClassificationNode(Serializer, Deserializer):
     
 
     def graph_weak_learner_performance(self, file_path:str='Weak Learner Plot.png'):
-        # TODO Break sub graphs up.. too many nodes will likely make graph unreadable...
-
-        def autolabel(rects):
-            """Attach a text label above each bar in *rects*, displaying its height."""
-            for rect in rects:
-                height = rect.get_height()
-                ax.annotate('{:.2f}'.format(height),
-                            xy=(rect.get_x() + rect.get_width() / 2, height),
-                            xytext=(0, -15),  # 3 points vertical offset
-                            rotation=90,
-                            fontsize=6,
-                            textcoords="offset points",
-                            ha='center', va='bottom')
-
+        # Variables:
+        colors = ['indianred', 'gold', 'teal', 'royalblue','salmon', 'darkorange', 'seagreen', 'darkorchid']
+        
+        # Get node data:
         data = self._collect_data()
+
+        # Calculate number of rows and columns in graph space:
+        sqrt = int(math.sqrt(len(data))) + 1
+        if ((sqrt*sqrt) - sqrt) >= len(data): n_rows = sqrt - 1
+        else: n_rows = sqrt
+
+        # Create Graph
+        fig, axes = plt.subplots(n_rows, sqrt, sharey='row')
+        fig.suptitle('Weak Learner Test Accuracy Scores by Classification Node')
+        fig.supylabel('Test Accuracy Score (0.0 - 1.0)')
         
-        labels = []
-        test_acc_by_weak_learner_title = {}
-        for node_data in data:
-            # node_data[0] <- is classification title
-            # node_data[1] <- is dict of weak learners and their test accuracy
-            labels.append(node_data[0])
-            for weak_learner_title in node_data[1].keys():
-                if weak_learner_title not in test_acc_by_weak_learner_title.keys():
-                    test_acc_by_weak_learner_title[weak_learner_title] = [node_data[1][weak_learner_title]]
-                else:
-                    test_acc_by_weak_learner_title[weak_learner_title].append(node_data[1][weak_learner_title])
+        # Add each Bar plot to graph space:
+        for i in range(0,len(data)):
+            # Get values needed for plotting from data:
+            x_labels=list(data[i][1].keys())
+            values = list(data[i][1].values())
+            node_title = data[i][0]
+            
+            # Get row and column in graph space for this plot:
+            row = int(i/sqrt)
+            col = int(i%sqrt)
 
+            # Plot Bar:
+            bars = axes[row, col].bar(
+                x_labels,
+                values,
+                color=colors
+            )
+            
+            # Set title of Bar Graph:
+            axes[row, col].set_title(
+                node_title + ' Weak Learners',
+                fontsize=5
+            )
+            
+            # Style Axes:
+            axes[row, col].get_xaxis().set_ticks([])
+            axes[row, col].get_yaxis().set_ticks([])
+            pos = axes[row, col].get_position()
+            axes[row, col].set_position([pos.x0, pos.y0, pos.width - 0.02, pos.height])
 
-
-        fig, ax = plt.subplots()
-        x = np.arange(len(labels)).astype(float)  # the label locations
-        w = 0.2  # the width of the bars
-        s = 0.1 # the separeation between subplots
-        c = len(list(test_acc_by_weak_learner_title.keys())) # the number of different learners
+            # Annote Bars:
+            for bar in bars:
+                height = bar.get_height()
+                axes[row, col].annotate(
+                    '{:.3f}'.format(height),
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, -5),
+                    fontsize=4,
+                    textcoords="offset points",
+                    ha='center', 
+                    va='bottom',
+                )
         
+        # Hide remaining subplots in grid:
+        for i in range(len(data), n_rows*sqrt):
+            axes.flat[i].set_visible(False)
 
+        # Create List of elements for the legend:
+        legend_lines = [Line2D([0], [0], color=colors[x_labels.index(i)%len(colors)], lw=3, label=i) for i in x_labels]
 
-        for i in range(0, len(x)):
-            x[i] = float( float(x[i]) * (w * float(c) + s) )
-        
-        for weak_learner_title in test_acc_by_weak_learner_title.keys():
-            i = list(test_acc_by_weak_learner_title.keys()).index(weak_learner_title) # the learner's placement in the dict
-            place = x - ((w*(c/2))+(w/2)) + (w*(i+1)) # Calculating placement relative to x
-
-            rects = ax.bar(place, test_acc_by_weak_learner_title[weak_learner_title], w, label=weak_learner_title)
-            autolabel(rects)
-
-        
-        # Add some text for labels, title and custom x-axis tick labels, etc.
-        ax.set_ylabel('Test Accuracy Score (0.0 - 1.0)')
-        ax.set_title('Weak Learner Test Accuracy Scores by Classification Node')
-        
-        ax.set_xticks(x)
-        ax.set_xticklabels(
-            labels, 
-            fontsize=6.6,
-            rotation=90,
-            # backgroundcolor="grey"
-        )
-        # modify labels
-        i = 0
-        for tl in ax.get_xticklabels():
-            if i == 0: 
-                tl.set_backgroundcolor('gainsboro')
-                i = 1
-            else:
-                tl.set_backgroundcolor('darkgrey')
-                i = 0
-
-        # ax.legend(bbox_to_anchor=(0.5, 1.0, 0.1, 0.1), title="Weak Learners")
-        ax.legend(
-            title="Weak Learners",
-            loc='upper center', 
-            bbox_to_anchor=(0.5, 0.3),
+        # Create legend:
+        fig.legend(
+            handles= legend_lines,
+            loc='upper left', 
             fancybox=False, 
             shadow=False, 
-            ncol=3,
-            framealpha=0.7
+            framealpha=0.6,
+            fontsize="5"
         )
-        fig.tight_layout()
-        
-        fig.set_size_inches(10, 5)
-        fig.savefig(file_path, dpi=200)
 
-        # plt.show()
+        # Style and Size Figure:
+        fig.tight_layout()
+        fig.set_size_inches(10, 5)
+
+        # Save Figure:
+        fig.savefig(file_path, dpi=300)
 
 
     def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None)->None:
