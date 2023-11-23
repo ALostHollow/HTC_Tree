@@ -113,9 +113,10 @@ class SimpleModel():
         self.test_size = test_size # The test size used in Trian
         self.search_method = search
         self.ready = False
+        self.best_params = None
     
     # Class Methods:
-    def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame)->None:
+    def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, use_best:bool=False, n_iter:int=20)->None:
         # features: the column of predictions is based on (input column title)
         # targets: the column of classes to predict (classes column title)
 
@@ -125,24 +126,45 @@ class SimpleModel():
             start_time = time.time()
             print()
 
-        # Create Classifier w/ Gridsearch:
-        if self.search_method == "Grid":
+        # Generating parameter grid to use for search:
+        if use_best and self.best_params != None:
+            parameters = {}
+            for param in self.best_params.keys():
+                parameters[param] = [self.best_params[param]]
+            search_method = "Grid"
+
+        else:
+            parameters = self.param_grid
+            search_method = "Random"
+
+        # Calculating Size of Hyperparameter space
+        hyperparam_space_size = 1
+        for param in parameters.keys():
+            hyperparam_space_size *= len(parameters[param])
+
+        # Create Classifier w/ Gridsearch: 
+        # (It will default to this is HP space is lower than the iteration limit)
+        if search_method == "Grid" or hyperparam_space_size <= n_iter:
+            if self.verbose: print(f"Grid search: {hyperparam_space_size}")
             self.classifier = GridSearchCV(
                 estimator=self.estimator,
-                param_grid=self.param_grid,
+                param_grid=parameters,
                 verbose=(1 if self.verbose else 0),
                 cv=self.cv_folds,
             )
         
         # Create Classifier w/ RandomizedSearchCV:
-        elif self.search_method == "Random":
+        elif search_method == "Random":
+            if self.verbose: print(f"Random search: {hyperparam_space_size}")
             self.classifier = RandomizedSearchCV(
                 estimator=self.estimator,
-                param_distributions=self.param_grid,
+                param_distributions=parameters,
                 verbose=(1 if self.verbose else 0),
                 cv=self.cv_folds,
-                n_iter=20,
+                n_iter=n_iter,
             )
+
+        
 
         # Generate Test/Train Split:
         train_features, test_features, train_targets, test_targets = train_test_split(
@@ -164,6 +186,8 @@ class SimpleModel():
         self.train_f1 = f1_score(train_targets, train_predictions, average="micro")
 
         self.ready = True
+
+        self.best_params = self.classifier.best_params_
 
         # Report Test/Train scores:
         if self.verbose:
@@ -209,14 +233,12 @@ class SimpleModel():
 
         return predictions
     
-    def report(self)->dict:
-        if  self.ready:
-            return {
-                "test accuracy": self.test_acc,
-                "test f1": self.test_acc
-            }
-        else:
-            return {}
+    def score(self)->float:
+        '''
+        This method is to be used in both graphing and weight in voting.
+        This returns a float between 0 and 1.
+        '''
+        return self.test_acc
 
     
 # An Ensemble of the lower models
@@ -238,10 +260,13 @@ class Ensemble(Serializer, Deserializer):
     #     pass
 
     # Class Methods:
-    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False)->None:
+    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, use_best:bool=False, verbose:bool=False)->None:
         start_time = time.time()
         self.train_features = train_features # the column to base predictions on (can be overwritten in Predict)
         self.train_targets = train_targets # the column of classes to predict in training (can be overwritten in Predict)
+
+        # Report if using previously found paramaters:
+        if verbose and use_best: print("Using previously found hyperparameters if present.")
 
         # Cleanining Training Data:
         clean_data = self._clean_Data(data=data)
@@ -259,7 +284,7 @@ class Ensemble(Serializer, Deserializer):
             temp_model = copy.deepcopy(self.models[i])
             
             # Train the temp model:
-            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str))
+            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), use_best=use_best)
 
             # Get amount of spaces required to line up text:
             if verbose: spaces=(max_length - len(str(self.models[i].estimator))) * ' ' 
@@ -323,10 +348,6 @@ class Ensemble(Serializer, Deserializer):
 
         # Returnining Cleaned Data:
         return clean_data  
-
-    def report(self)->dict:
-        for model in self.models:
-            print(model.report())
 
     # Class Static Methods:
     @staticmethod
@@ -396,21 +417,22 @@ class ClassificationNode(Serializer, Deserializer):
     
     
     # Class Methods:
-    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, use_best:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
         
         self._recursive_train(
             data=data, 
             save_on_train=save_on_train,
+            use_best=use_best,
             verbose=verbose,
             serializer=serializer,
             **kwargs
         )
 
-    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, use_best:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         # Training node ensemble:
         if self.ensemble.train_flag:
-            self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose)
+            self.ensemble.Train(data, self.input_column, self.prediction_title, use_best=use_best, verbose=verbose)
 
             # Save Ensemble:
             if save_on_train:
@@ -445,6 +467,7 @@ class ClassificationNode(Serializer, Deserializer):
                     node._recursive_train(
                         data=sub_data,
                         save_on_train=save_on_train,
+                        use_best=use_best,
                         verbose=verbose,
                         serializer=serializer,
                         **kwargs
