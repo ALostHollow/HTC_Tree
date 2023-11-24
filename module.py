@@ -292,7 +292,7 @@ class Ensemble(Serializer, Deserializer):
                 end="\n" * (len(self.models) + 1), # Move cursor down to below loop prints
                 flush=True)
 
-    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, weighted_voting:bool=True)->pd.DataFrame:
         
         # column: the column to based predictions on
         if not self.ready:
@@ -309,13 +309,17 @@ class Ensemble(Serializer, Deserializer):
             print(f"model {self.models.index(model)} of {len(self.models)} predicting", end='\r', flush=True)
             predictions_df[str(self.models.index(model))] = model.Predict(input, input_column)
 
+        # print(predictions_df.head())
         print(f"All Learners made predictions", end='\n\n', flush=True)
 
         # Tally model votes:
         predictions_df.reindex(input.index)
         output = input.copy(deep=True)
-        output[prediction_title] = predictions_df.mode(axis=1)[0]
-        output[prediction_title + " agreement"] = predictions_df.apply(self._calc_agreement, axis=1)
+        if weighted_voting:
+            output[[prediction_title, prediction_title + " agreement"]] = predictions_df.apply(self._weighted_vote, axis=1, prediction_title=prediction_title)
+        else:
+            output[prediction_title] = predictions_df.mode(axis=1)[0]
+            output[prediction_title + " agreement"] = predictions_df.apply(self._simple_vote, axis=1)
 
         return output
   
@@ -327,7 +331,36 @@ class Ensemble(Serializer, Deserializer):
 
         # Returnining Cleaned Data:
         return clean_data  
+    
+    def _weighted_vote(self, row, prediction_title:str):
+        '''
+        returns precition and confidence
+        c -> 'confidence'
+        s -> sum of weights for highest prediction
+        n -> normalized count of highest prediction
+        t -> total predictions
 
+        c = s*n/t
+        '''
+        # Get combined weights for each unique prediction:
+        item_counts = {}
+        i = 0
+        for model in self.models:           
+            if row[i] not in item_counts.keys(): item_counts[row[i]] = model.score()
+            else: item_counts[row[i]] += model.score()
+            i += 1
+            
+        # Find the highest combined weight:
+        highest = ['', 0]
+        for item in item_counts.keys():
+            if item_counts[item] > highest[1]: highest = [item, item_counts[item]]
+
+        # Get count of votes for highest:
+        i = row.value_counts(normalize=True)[highest[0]]
+
+        # return highest count / number of total predictions:
+        return pd.Series([highest[0], highest[1]*i/len(row)], index=[prediction_title, prediction_title + ' confidence'])
+    
     # Class Static Methods:
     @staticmethod
     def _validate_model(model)->None:
@@ -340,9 +373,9 @@ class Ensemble(Serializer, Deserializer):
             callable(getattr(model, "Predict"))
         except:
             raise AttributeError(f"{type(model)} has no method 'Predict'\n  Use a wrapper for your models that includes a 'Predict' method")
-        
+    
     @staticmethod
-    def _calc_agreement(row)->float:
+    def _simple_vote(row)->float:
         # count all predictions of each class predicted:
         item_counts = {}
         for item in row:
@@ -356,6 +389,8 @@ class Ensemble(Serializer, Deserializer):
 
         # return highest count / number of total predictions:
         return highest/len(row)
+    
+    
         
 
 # A node in the hierarchy:
@@ -456,9 +491,9 @@ class ClassificationNode(Serializer, Deserializer):
                     )
         
 
-    def Predict(self, input:pd.DataFrame, shallow=False)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, shallow=False, weighted_voting:bool=True)->pd.DataFrame:
         # Node ensemble making predictions:
-        node_predictions = self.ensemble.Predict(input)
+        node_predictions = self.ensemble.Predict(input, weighted_voting=weighted_voting)
         
         # Check if this is a leaf node:
         if self.branches not in [None, {}] and shallow == False:
@@ -478,7 +513,7 @@ class ClassificationNode(Serializer, Deserializer):
                 # Run predictions for each branch: (New Columns)
                 for node in self.branches[branch]:
                     # Recusrsive Call:
-                    sub_node_predictions = node.Predict(input=sub_node_data)
+                    sub_node_predictions = node.Predict(input=sub_node_data, weighted_voting=weighted_voting)
                     # print(sub_node_predictions.head())
                     if branch != '*':
                         column_indexer = sub_node_predictions.columns
