@@ -114,6 +114,7 @@ class SimpleModel():
         self.search_method = search
         self.ready = False
         self.best_params = None
+        self.test_acc = 0 # used in comparison so should be set on __init__
     
     # Class Methods:
     def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, use_best:bool=False, n_iter:int=20)->None:
@@ -200,24 +201,6 @@ class SimpleModel():
             print(f"Best Parameters: {search.best_params_}")
             # print(f"Length of Trian Targets: {train_targets.shape}")
 
-    def better_than(self, other:'SimpleModel')->bool:
-        """
-        Compares self to another SimpleModel. 
-        Returns True if other SimpleModel is 'better', and False otherwise.
-        """
-        # self.test_acc
-        # self.test_f1
-        # self.test_size
-
-        if self.ready==False and other.ready==False:
-            raise Exception("Both self and other must be 'ready', train model before comparing...")
-        if self.ready==True and other.ready==False:
-            return True
-        if self.ready==False and other.ready==True:
-            return False
-        else:
-            return self.test_acc >= other.test_acc
-
     def Predict(self, input:pd.Series|pd.DataFrame, column:str=None):
         # column: the column to predict on (input column title)
         
@@ -255,10 +238,6 @@ class Ensemble(Serializer, Deserializer):
         self.train_flag = True # indicates if models should to be trained
         self.created = time.time() # the time of instance instantiation
 
-    # def __str__(self) -> str:
-    #     # Add object name to string:
-    #     pass
-
     # Class Methods:
     def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, use_best:bool=False, verbose:bool=False)->None:
         start_time = time.time()
@@ -290,10 +269,10 @@ class Ensemble(Serializer, Deserializer):
             if verbose: spaces=(max_length - len(str(self.models[i].estimator))) * ' ' 
             
             # Compare newly trained model:
-            if temp_model.better_than(self.models[i]): # <- temp model was better
+            if temp_model.score() > self.models[i].score():
                 if verbose: print(f"{spaces}Done ({time.time() - training_start_time}s)", flush=True)
                 self.models[i] = temp_model
-            else:   # <- temp model was not better
+            else:
                 if verbose: print(f"{spaces}New model was not better ({time.time() - training_start_time}s)", flush=True)
 
         # Mark self as Ready for predictions and as not needing training:
@@ -595,7 +574,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         node_data = {}
         for i in range(0, len(self.ensemble.models)):
-            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].test_acc#TODO this value should be based on a callable in SimpleModel
+            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score
 
         if tree_path == None:
             node_title = self.prediction_title
