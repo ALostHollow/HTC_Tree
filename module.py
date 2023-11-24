@@ -382,7 +382,7 @@ class Ensemble(Serializer, Deserializer):
 # A node in the hierarchy:
 class ClassificationNode(Serializer, Deserializer):
     # Class Method Overloads:
-    def __init__(self, prediction_title:str, ensemble:Ensemble=None, ensemble_path:str=None, input_column:str='client description', node_id:str=None, branches:dict=None, save_ensembles:bool=True):
+    def __init__(self, prediction_title:str, ensemble:Ensemble=None, ensemble_path:str=None, input_column:str='client description', node_id:str=None, branches:dict=None, save_ensembles:bool=True, serializer:callable=None):
         # Exceptions:
         if ensemble == None and ensemble_path == None:
             raise ValueError(f"ClassificationNode expects either an <ensemble> or and <ensemble_path>. Neither supplied.")
@@ -404,7 +404,10 @@ class ClassificationNode(Serializer, Deserializer):
 
         # Save ensemble at new location: TODO make callable...
         if ensemble_path != self.ensemble_path and save_ensembles:
-            self.ensemble.to_pickle(self.ensemble_path)
+            if serializer == None:
+                self.ensemble.to_pickle(self.ensemble_path)
+            else:
+                serializer(self, self.ensemble_path)
 
     def __str__(self) -> str:
         part1 = f"Predicts '{self.prediction_title}'"
@@ -742,24 +745,33 @@ class ClassificationNode(Serializer, Deserializer):
 
     # Static Class Methods:
     @staticmethod
-    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=True)->'ClassificationNode':
+    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None)->'ClassificationNode':
+        start_time = time.time() 
+        
         # Exceptions:
         if not os.path.exists(file_path):
             raise FileExistsError(f"File '{file_path}' does not exist")
-        
-        # Verbose Messages:
-        if verbose: 
-                print(f"Building Tree Structure from '{file_path}'...",end='', flush=True)
-                start_time = time.time() 
         
         # Opening JSON File:
         with open(file_path) as file:
             test_json = json.load(file)
 
+        if "verbose" in test_json.keys():
+            verbose = test_json["verbose"]
+        
+        if "save_ensembles" in test_json.keys():
+            save_ensembles = test_json["save_ensembles"]
+        
+        # Verbose Messages:
+        if verbose: 
+                print(f"Building Tree Structure from '{file_path}'...",end='', flush=True)
+                       
+
         # Building Tree Structure:
         root_node = ClassificationNode._recursive_build(
             structure=test_json["root"],
-            save_ensembles=save_ensembles
+            save_ensembles=save_ensembles,
+            serializer=serializer
         )
 
         # Verbose Messages:
@@ -770,7 +782,7 @@ class ClassificationNode(Serializer, Deserializer):
         return root_node
     
     @staticmethod
-    def _recursive_build(structure:dict, save_ensembles:bool=True)->'ClassificationNode':
+    def _recursive_build(structure:dict, save_ensembles:bool=True, serializer:callable=None)->'ClassificationNode':
         # Building The Sub Nodes in Each Branch:
         branches = {}
         for branch in structure["branches"].keys():
@@ -782,6 +794,7 @@ class ClassificationNode(Serializer, Deserializer):
                 sub_node = ClassificationNode._recursive_build(
                     structure=sub_node_structure,
                     save_ensembles=save_ensembles,
+                    serializer=serializer
                 )
                 
                 # Adding Built Node to Branches:
@@ -798,6 +811,7 @@ class ClassificationNode(Serializer, Deserializer):
             node_id=id,
             branches=branches,
             save_ensembles=save_ensembles,
+            serializer=serializer,
         )
 
         # Returning This Node:
