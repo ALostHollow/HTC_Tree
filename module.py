@@ -603,7 +603,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         node_data = {}
         for i in range(0, len(self.ensemble.models)):
-            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score
+            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score()
 
         if tree_path == None:
             node_title = self.prediction_title
@@ -633,6 +633,7 @@ class ClassificationNode(Serializer, Deserializer):
         sqrt = int(math.sqrt(len(data))) + 1
         if ((sqrt*sqrt) - sqrt) >= len(data): n_rows = sqrt - 1
         else: n_rows = sqrt
+        n_rows = max(n_rows, 2) # minimum size of gride is 2x2
 
         # Create Graph
         fig, axes = plt.subplots(n_rows, sqrt, sharey='row')
