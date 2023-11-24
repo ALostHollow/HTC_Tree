@@ -316,10 +316,10 @@ class Ensemble(Serializer, Deserializer):
         predictions_df.reindex(input.index)
         output = input.copy(deep=True)
         if weighted_voting:
-            output[[prediction_title, prediction_title + " agreement"]] = predictions_df.apply(self._weighted_vote, axis=1, prediction_title=prediction_title)
+            output[[prediction_title, prediction_title + " confidence"]] = predictions_df.apply(self._weighted_vote, axis=1, prediction_title=prediction_title)
         else:
             output[prediction_title] = predictions_df.mode(axis=1)[0]
-            output[prediction_title + " agreement"] = predictions_df.apply(self._simple_vote, axis=1)
+            output[prediction_title + " confidence"] = predictions_df.apply(self._simple_vote, axis=1)
 
         return output
   
@@ -332,17 +332,14 @@ class Ensemble(Serializer, Deserializer):
         # Returnining Cleaned Data:
         return clean_data  
     
-    def _weighted_vote(self, row, prediction_title:str):
+    def _weighted_vote(self, row, prediction_title:str)->pd.Series:
         '''
-        returns precition and confidence
-        c -> 'confidence'
-        s -> sum of weights for highest prediction
-        n -> normalized count of highest prediction
-        t -> total predictions
+        Returns a pd.Series containing the precition and a 'confidence' score (0-1).
 
-        c = s*n/t
+        The confidence score is the highest sum of unique prediction weights over total predictions.
+        Effectively counting disagreeing weights as 0.0 then averaging all the weights.
         '''
-        # Get combined weights for each unique prediction:
+        # Get sum weights for each unique prediction:
         item_counts = {}
         i = 0
         for model in self.models:           
@@ -350,16 +347,13 @@ class Ensemble(Serializer, Deserializer):
             else: item_counts[row[i]] += model.score()
             i += 1
             
-        # Find the highest combined weight:
+        # Find the highest sum of weights:
         highest = ['', 0]
         for item in item_counts.keys():
             if item_counts[item] > highest[1]: highest = [item, item_counts[item]]
 
-        # Get count of votes for highest:
-        i = row.value_counts(normalize=True)[highest[0]]
-
         # return highest count / number of total predictions:
-        return pd.Series([highest[0], highest[1]*i/len(row)], index=[prediction_title, prediction_title + ' confidence'])
+        return pd.Series([highest[0], highest[1]/len(row)], index=[prediction_title, prediction_title + ' confidence'])
     
     # Class Static Methods:
     @staticmethod
