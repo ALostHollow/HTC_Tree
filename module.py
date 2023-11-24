@@ -21,7 +21,7 @@ from sklearn.metrics import accuracy_score, f1_score
 
 # Handles Serialization and Deserialization:
 class Serializer:
-    def to_pickle(self, file_path:str, overwite:bool=True, verbose:bool=False, **kwargs) -> None:
+    def to_pickle(self, file_path:str, overwite:bool=True, verbose:bool=False) -> None:
         """
         Saves object as a pickle file at given location. 
 
@@ -50,7 +50,7 @@ class Serializer:
         # Serializing Object:
         with open(file_path, 'wb') as file:
             if verbose: print(f"Saving {self} at '{file_path}' as Pickle... ", end='', flush=True)
-            pickle.dump(self, file, **kwargs)
+            pickle.dump(self, file)
             if verbose: print(f"Done. Operation took {time.time()-start_time}s")
 
         return
@@ -117,12 +117,17 @@ class SimpleModel():
         self.test_acc = 0 # used in comparison so should be set on __init__
     
     # Class Methods:
-    def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, use_best:bool=False, n_iter:int=20)->None:
+    def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, **kwargs)->None:#, use_best:bool=False, n_iter:int=20)->None:
         # features: the column of predictions is based on (input column title)
         # targets: the column of classes to predict (classes column title)
 
         # Runs the training operations that must be done per simple model
         
+        # Parse kwargs:
+        use_best = 'use_best' in kwargs and kwargs['use_best']
+        result = lambda x : x['n_iter'] if 'n_iter' in x else 20 # default value is 20
+        n_iter = result(kwargs)
+
         if self.verbose: 
             start_time = time.time()
             print()
@@ -164,8 +169,6 @@ class SimpleModel():
                 cv=self.cv_folds,
                 n_iter=n_iter,
             )
-
-        
 
         # Generate Test/Train Split:
         train_features, test_features, train_targets, test_targets = train_test_split(
@@ -239,13 +242,10 @@ class Ensemble(Serializer, Deserializer):
         self.created = time.time() # the time of instance instantiation
 
     # Class Methods:
-    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, use_best:bool=False, verbose:bool=False)->None:
+    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False, **kwargs)->None:
         start_time = time.time()
         self.train_features = train_features # the column to base predictions on (can be overwritten in Predict)
         self.train_targets = train_targets # the column of classes to predict in training (can be overwritten in Predict)
-
-        # Report if using previously found paramaters:
-        if verbose and use_best: print("Using previously found hyperparameters if present.")
 
         # Cleanining Training Data:
         clean_data = self._clean_Data(data=data)
@@ -263,10 +263,10 @@ class Ensemble(Serializer, Deserializer):
             temp_model = copy.deepcopy(self.models[i])
             
             # Train the temp model:
-            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), use_best=use_best)
+            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
 
             # Get amount of spaces required to line up text:
-            if verbose: spaces=(max_length - len(str(self.models[i].estimator))) * ' ' 
+            if verbose: spaces=(max_length - len(str(self.models[i].estimator))) * ' '
             
             # Compare newly trained model:
             if temp_model.score() > self.models[i].score():
@@ -292,7 +292,12 @@ class Ensemble(Serializer, Deserializer):
                 end="\n" * (len(self.models) + 1), # Move cursor down to below loop prints
                 flush=True)
 
-    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, weighted_voting:bool=True)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, **kwargs)->pd.DataFrame:
+        
+        # Parse kwargs:
+        result = lambda x : x['weighted_voting'] if 'weighted_voting' in x else True # default value is True
+        weighted_voting = result(kwargs)
+        verbose = 'verbose' in kwargs and kwargs['verbose']
         
         # column: the column to based predictions on
         if not self.ready:
@@ -300,17 +305,17 @@ class Ensemble(Serializer, Deserializer):
         
         if not input_column: input_column = self.train_features
         if not prediction_title: prediction_title = self.train_targets
-        print(f"Ensemble predicting for {prediction_title}")
+        if verbose: print(f"Ensemble predicting for {prediction_title}")
 
         predictions_df = pd.DataFrame(index=input.index)
 
         # Run predictions for each model in ensemble:
         for model in self.models:
-            print(f"model {self.models.index(model)} of {len(self.models)} predicting", end='\r', flush=True)
+            if verbose: print(f"model {self.models.index(model)} of {len(self.models)} predicting", end='\r', flush=True)
             predictions_df[str(self.models.index(model))] = model.Predict(input, input_column)
 
         # print(predictions_df.head())
-        print(f"All Learners made predictions", end='\n\n', flush=True)
+        if verbose: print(f"All Learners made predictions", end='\n\n', flush=True)
 
         # Tally model votes:
         predictions_df.reindex(input.index)
@@ -443,12 +448,12 @@ class ClassificationNode(Serializer, Deserializer):
     def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, use_best:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         # Training node ensemble:
         if self.ensemble.train_flag:
-            self.ensemble.Train(data, self.input_column, self.prediction_title, use_best=use_best, verbose=verbose)
+            self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose, **kwargs)
 
             # Save Ensemble:
             if save_on_train:
                 if serializer == None:
-                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
+                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose)
                 else:
                     serializer(self.ensemble, self.ensemble_path, **kwargs)
 
@@ -485,9 +490,9 @@ class ClassificationNode(Serializer, Deserializer):
                     )
         
 
-    def Predict(self, input:pd.DataFrame, shallow=False, weighted_voting:bool=True)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, shallow=False, **kwargs)->pd.DataFrame:
         # Node ensemble making predictions:
-        node_predictions = self.ensemble.Predict(input, weighted_voting=weighted_voting)
+        node_predictions = self.ensemble.Predict(input, **kwargs)
         
         # Check if this is a leaf node:
         if self.branches not in [None, {}] and shallow == False:
@@ -507,7 +512,7 @@ class ClassificationNode(Serializer, Deserializer):
                 # Run predictions for each branch: (New Columns)
                 for node in self.branches[branch]:
                     # Recusrsive Call:
-                    sub_node_predictions = node.Predict(input=sub_node_data, weighted_voting=weighted_voting)
+                    sub_node_predictions = node.Predict(input=sub_node_data, **kwargs)
                     # print(sub_node_predictions.head())
                     if branch != '*':
                         column_indexer = sub_node_predictions.columns
