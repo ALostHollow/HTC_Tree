@@ -240,6 +240,7 @@ class Ensemble(Serializer, Deserializer):
         self.ready = False  # indicates if models can make predictions
         self.train_flag = True # indicates if models should to be trained
         self.created = time.time() # the time of instance instantiation
+        self.single_class = None
 
     # Class Methods:
     def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False, **kwargs)->None:
@@ -249,8 +250,17 @@ class Ensemble(Serializer, Deserializer):
 
         # Cleanining Training Data:
         clean_data = self._clean_Data(data=data)
+
+        if len(clean_data[self.train_targets].unique()) == 1:
+            warnings.warn(f"'{train_targets}' given training data with a single class.\nAll predictions will be this single class: '{clean_data[self.train_targets].unique()[0]}'.")
+            self.single_class = clean_data[self.train_targets].unique()[0]
+            self.ready = True
+            self.train_flag = False
+            return
+
+
         if verbose: print(f"\nTraining Weak Learners for {train_targets}. {int(clean_data.shape[0]/data.shape[0]*100)}% of data is usable.", flush=True)
-        
+
         # Getting max length of self.model[].estimator() as strings:
         if verbose: max_length = max([len(str(model.estimator)) for model in self.models])
 
@@ -278,6 +288,7 @@ class Ensemble(Serializer, Deserializer):
         # Mark self as Ready for predictions and as not needing training:
         self.ready = True
         self.train_flag = False
+        self.single_class = None
 
         # Build Report String:
         if verbose:
@@ -293,19 +304,23 @@ class Ensemble(Serializer, Deserializer):
                 flush=True)
 
     def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, **kwargs)->pd.DataFrame:
-        
+        if not self.ready:
+            raise Exception("Ensemble is not ready for predictions.")
+    
         # Parse kwargs:
         result = lambda x : x['weighted_voting'] if 'weighted_voting' in x else True # default value is True
         weighted_voting = result(kwargs)
-        verbose = 'verbose' in kwargs and kwargs['verbose']
-        
-        # column: the column to based predictions on
-        if not self.ready:
-            raise Exception("Ensemble is not ready for predictions.")
+        verbose = 'verbose' in kwargs and kwargs['verbose']        
         
         if not input_column: input_column = self.train_features
         if not prediction_title: prediction_title = self.train_targets
         if verbose: print(f"Ensemble predicting for {prediction_title}")
+
+        if self.single_class != None:
+            output = input.copy(deep=True)
+            output[prediction_title] = self.single_class
+            output[prediction_title + " confidence"] = 0
+            return output
 
         predictions_df = pd.DataFrame(index=input.index)
 
@@ -446,7 +461,7 @@ class ClassificationNode(Serializer, Deserializer):
 
     def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         # Training node ensemble:
-        if self.ensemble.train_flag:
+        if self.ensemble.train_flag or self.ensemble.single_class != None:
             self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose, **kwargs)
 
             # Save Ensemble:
