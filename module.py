@@ -249,10 +249,11 @@ class Ensemble(Serializer, Deserializer):
         self.train_targets = train_targets # the column of classes to predict in training (can be overwritten in Predict)
 
         # Cleanining Training Data:
-        clean_data = self._clean_Data(data=data)
+        clean_data = self._clean_Data(data=data.copy(deep=True))
 
         if len(clean_data[self.train_targets].unique()) == 1:
-            warnings.warn(f"'{train_targets}' given training data with a single class.\nAll predictions will be this single class: '{clean_data[self.train_targets].unique()[0]}'.")
+            # warnings.warn(f"'{train_targets}' given training data with a single class.\nAll predictions will be this single class: '{clean_data[self.train_targets].unique()[0]}'.")
+            print(f"Warning: '{train_targets}' given training data with a single valid class. All predictions will be '{clean_data[self.train_targets].unique()[0]}'.")
             self.single_class = clean_data[self.train_targets].unique()[0]
             self.ready = True
             self.train_flag = False
@@ -310,7 +311,7 @@ class Ensemble(Serializer, Deserializer):
         # Parse kwargs:
         result = lambda x : x['weighted_voting'] if 'weighted_voting' in x else True # default value is True
         weighted_voting = result(kwargs)
-        verbose = 'verbose' in kwargs and kwargs['verbose']        
+        verbose = 'verbose' in kwargs and kwargs['verbose']
         
         if not input_column: input_column = self.train_features
         if not prediction_title: prediction_title = self.train_targets
@@ -319,7 +320,7 @@ class Ensemble(Serializer, Deserializer):
         if self.single_class != None:
             output = input.copy(deep=True)
             output[prediction_title] = self.single_class
-            output[prediction_title + " confidence"] = 0
+            output[prediction_title + " confidence"] = 1
             return output
 
         predictions_df = pd.DataFrame(index=input.index)
@@ -328,7 +329,7 @@ class Ensemble(Serializer, Deserializer):
         for model in self.models:
             if verbose: print(f"model {self.models.index(model)} of {len(self.models)} predicting", end='\r', flush=True)
             predictions_df[str(self.models.index(model))] = model.Predict(input, input_column)
-
+        
         # print(predictions_df.head())
         if verbose: print(f"All Learners made predictions", end='\n\n', flush=True)
 
@@ -345,12 +346,14 @@ class Ensemble(Serializer, Deserializer):
   
     def _clean_Data(self, data:pd.DataFrame)->pd.DataFrame:
         # Removing NaN items:
-        clean_data = data[data[self.train_targets].notna()]
+        # clean_data = data[data[self.train_targets].notna()]
+        data[self.train_targets] = data[self.train_targets].fillna('NaN')
+
         # Removing non-duplicate data: (at least 2 items must be present in each class)
-        clean_data = clean_data[clean_data.duplicated(subset=[self.train_targets], keep=False)]
+        data = data[data.duplicated(subset=[self.train_targets], keep=False)]
 
         # Returnining Cleaned Data:
-        return clean_data  
+        return data  
     
     def _weighted_vote(self, row, prediction_title:str)->pd.Series:
         '''
@@ -519,7 +522,7 @@ class ClassificationNode(Serializer, Deserializer):
                 
                 # Check if sub_node_data is empty:
                 if sub_node_data.shape[0] == 0:
-                    print(f"no data to use for '{self.prediction_title}' at '{branch}'. {sub_node_data.shape[0]}/{node_predictions.shape[0]}")
+                    # print(f"no data to use for '{self.prediction_title}' at '{branch}'. {sub_node_data.shape[0]}/{node_predictions.shape[0]}")
                     continue
 
                 # Run predictions for each branch: (New Columns)
