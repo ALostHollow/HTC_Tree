@@ -523,10 +523,13 @@ class ClassificationNode(Serializer, Deserializer):
         return node_predictions
 
 
-    def gernate_design(self)->dict:
+    def gernate_design(self, **kwargs)->dict:
         design = {
             "root": self._recursive_generate_design()
         }
+        for arg in kwargs:
+            design[arg] = kwargs[arg]
+
         return design
 
     def _recursive_generate_design(self)->dict:
@@ -546,6 +549,8 @@ class ClassificationNode(Serializer, Deserializer):
             }
     
 
+# TODO i don't think these add any new functionality... 
+# you can just use build_from_json for same functionality..
     def update_from_json(self, file_path:str, verbose:bool=False)->None:
         # Exceptions:
         if not os.path.exists(file_path):
