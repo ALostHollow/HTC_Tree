@@ -433,19 +433,18 @@ class ClassificationNode(Serializer, Deserializer):
     
     
     # Class Methods:
-    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, use_best:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
         
         self._recursive_train(
             data=data, 
             save_on_train=save_on_train,
-            use_best=use_best,
             verbose=verbose,
             serializer=serializer,
             **kwargs
         )
 
-    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, use_best:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
         # Training node ensemble:
         if self.ensemble.train_flag:
             self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose, **kwargs)
@@ -483,7 +482,6 @@ class ClassificationNode(Serializer, Deserializer):
                     node._recursive_train(
                         data=sub_data,
                         save_on_train=save_on_train,
-                        use_best=use_best,
                         verbose=verbose,
                         serializer=serializer,
                         **kwargs
