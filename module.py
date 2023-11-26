@@ -565,88 +565,7 @@ class ClassificationNode(Serializer, Deserializer):
             "node id": self.node_id,
             "branches": map
             }
-    
 
-# TODO i don't think these add any new functionality... 
-# you can just use build_from_json for same functionality..
-    def update_from_json(self, file_path:str, verbose:bool=False)->None:
-        # Exceptions:
-        if not os.path.exists(file_path):
-            raise FileExistsError(f"File '{file_path}' does not exist")
-        
-        # Verbose Messages:
-        if verbose: 
-                print(f"Building New Parts of Structure from '{file_path}'...", flush=True)
-                start_time = time.time() 
-
-        
-        temp_node = ClassificationNode.build_from_json(file_path)
-        
-        self._recursize_update(
-            temp_node=temp_node,
-        )
-
-        # Verbose Messages:
-        if verbose: 
-                print(f"Done. Operations took {time.time()-start_time}s", flush=True)
-
-    def _recursize_update(self, temp_node:'ClassificationNode')->None:
-        for branch in list(self.branches.keys()):
-            if branch not in temp_node.branches.keys():
-                print(f"Branch '{branch}' no longer present, removing")
-                self.branches.pop(branch)
-
-        for branch in temp_node.branches.keys():
-            print(f"\nBranch: '{branch}'", end=' ')
-
-            if branch not in self.branches.keys():
-                print('new branch')
-                self.branches[branch] = temp_node.branches[branch]
-
-            else:
-                print('not new. Checking sub nodes:')
-                current_node_titles = {}
-                for node in self.branches[branch]:
-                    current_node_titles[node.prediction_title] = self.branches[branch].index(node)
-
-                temp_node_titles = {}
-                for node in temp_node.branches[branch]:
-                    temp_node_titles[node.prediction_title] = temp_node.branches[branch].index(node)
-
-                for title in temp_node_titles.keys():
-                    if title not in current_node_titles.keys():
-                        print(f"new Sub node: {title}")
-                        self.branches[branch].append(temp_node.branches[branch][temp_node_titles[title]])
-                    else:
-                        # Recursive Call:
-                        print(f"Not new Sub node: {title}")
-                        self.branches[branch][current_node_titles[title]]._recursize_update(
-                            temp_node.branches[branch][temp_node_titles[title]]
-                        )
-    
-
-    def _collect_data(self, tree_path:str=None)->list:
-
-        node_data = {}
-        for i in range(0, len(self.ensemble.models)):
-            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score()
-
-        if tree_path == None:
-            node_title = self.prediction_title
-            
-        else:
-            node_title = tree_path + '\n' + self.prediction_title
-        
-        data_list = [[node_title, node_data]]
-        
-        for branch in self.branches.keys():
-            for node in self.branches[branch]:
-                for item in node._collect_data(tree_path=node_title+"='"+branch+"'"):
-                    data_list.append(item)
-            
-
-        return data_list
-    
 
     def graph_weak_learner_performance(self, file_path:str='Weak Learner Plot.png'):
         # Variables:
@@ -666,13 +585,37 @@ class ClassificationNode(Serializer, Deserializer):
         fig.suptitle('Weak Learner Test Accuracy Scores by Classification Node')
         fig.supylabel('Test Accuracy Score (0.0 - 1.0)')
         
+        # Get a list of all weak learner titles:
+        all_weak_learner_titles = []
+        for i in range(0,len(data)):
+            for learner in data[i][1].keys():
+                all_weak_learner_titles.append(learner)
+        all_weak_learner_titles = list(set(all_weak_learner_titles))
+        
         # Add each Bar plot to graph space:
         for i in range(0,len(data)):
-            # Get values needed for plotting from data:
-            x_labels=list(data[i][1].keys())
-            values = list(data[i][1].values())
-            node_title = data[i][0]
+            node_title = data[i][0] 
+
+            x_labels = [] # The order of weak learners will differ, so indexing them by a
+            values = [] # single list of all weak learners is needed for the legend to be accurate
+            for label in all_weak_learner_titles:
+                if label in data[i][1].keys():
+                    x_labels.append(label)
+                    values.append(data[i][1][label])               
             
+            # If this node doesn't have all weak learners: 
+            # remove that label's colors from color list to plot
+            colors_to_use = colors
+            if len(x_labels) != len(all_weak_learner_titles):
+                # This creates a list of labels not present in x_labels
+                labels_to_remove = [x for x in all_weak_learner_titles if x not in x_labels]
+                # This gets the indexes of these labels in the list of all weak learners
+                index_to_remove = [all_weak_learner_titles.index(x) for x in labels_to_remove]
+                # This removes those indexes from the list of colors to use in plotting bars
+                for index in sorted(index_to_remove, reverse=True):
+                    colors_to_use.pop(index)
+                        
+
             # Get row and column in graph space for this plot:
             row = int(i/sqrt)
             col = int(i%sqrt)
@@ -681,7 +624,7 @@ class ClassificationNode(Serializer, Deserializer):
             bars = axes[row, col].bar(
                 x_labels,
                 values,
-                color=colors
+                color=colors_to_use
             )
             
             # Set title of Bar Graph:
@@ -714,7 +657,7 @@ class ClassificationNode(Serializer, Deserializer):
             axes.flat[i].set_visible(False)
 
         # Create List of elements for the legend:
-        legend_lines = [Line2D([0], [0], color=colors[x_labels.index(i)%len(colors)], lw=3, label=i) for i in x_labels]
+        legend_lines = [Line2D([0], [0], color=colors[all_weak_learner_titles.index(i)%len(colors)], lw=3, label=i) for i in all_weak_learner_titles]
 
         # Create legend:
         fig.legend(
@@ -733,6 +676,28 @@ class ClassificationNode(Serializer, Deserializer):
         # Save Figure:
         fig.savefig(file_path, dpi=300)
 
+    def _collect_data(self, tree_path:str=None)->list:
+
+        node_data = {}
+        for i in range(0, len(self.ensemble.models)):
+            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score()
+
+        if tree_path == None:
+            node_title = self.prediction_title
+            
+        else:
+            node_title = tree_path + '\n' + self.prediction_title
+        
+        data_list = [[node_title, node_data]]
+        
+        for branch in self.branches.keys():
+            for node in self.branches[branch]:
+                for item in node._collect_data(tree_path=node_title+"='"+branch+"'"):
+                    data_list.append(item)
+            
+
+        return data_list
+    
 
     def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None)->None:
         '''
@@ -776,7 +741,6 @@ class ClassificationNode(Serializer, Deserializer):
                     flag_list.append(item)
 
         return set(flag_list)
-
 
     # Static Class Methods:
     @staticmethod
