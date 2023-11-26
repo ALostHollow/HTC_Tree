@@ -605,7 +605,7 @@ class ClassificationNode(Serializer, Deserializer):
             
             # If this node doesn't have all weak learners: 
             # remove that label's colors from color list to plot
-            colors_to_use = colors
+            colors_to_use = copy.deepcopy(colors)
             if len(x_labels) != len(all_weak_learner_titles):
                 # This creates a list of labels not present in x_labels
                 labels_to_remove = [x for x in all_weak_learner_titles if x not in x_labels]
