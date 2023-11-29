@@ -760,29 +760,29 @@ class ClassificationNode(Serializer, Deserializer):
 
         temp_node = ClassificationNode.build_from_json(file_path)
 
-        self._recursize_update(temp_node=temp_node)
+        self._recursize_update(temp_node=temp_node, verbose=verbose)
 
         # Verbose Messages:
         if verbose: 
                 print(f"Done. Operations took {time.time()-start_time}s", flush=True)
 
-    def _recursize_update(self, temp_node:'ClassificationNode')->None:
+    def _recursize_update(self, temp_node:'ClassificationNode', verbose:bool=False)->None:
         # This method could probably be done better
-        
+
         for branch in list(self.branches.keys()):
             if branch not in temp_node.branches.keys():
-                print(f"Branch '{branch}' no longer present, removing")
+                if verbose: print(f"Branch '{branch}' no longer present, removing")
                 self.branches.pop(branch)
 
         for branch in temp_node.branches.keys():
-            print(f"\nBranch: '{branch}'", end=' ')
+            if verbose: print(f"\nBranch: '{branch}'", end=' ')
 
             if branch not in self.branches.keys():
-                print('new branch')
+                if verbose: print('new branch')
                 self.branches[branch] = temp_node.branches[branch]
 
             else:
-                print('not new. Checking sub nodes:')
+                if verbose: print('not new. Checking sub nodes:')
                 current_node_titles = {}
                 for node in self.branches[branch]:
                     current_node_titles[node.prediction_title] = self.branches[branch].index(node)
@@ -794,18 +794,20 @@ class ClassificationNode(Serializer, Deserializer):
                 # Adding new nodes in this branch, and recursive call for already present nodes:
                 for title in temp_node_titles.keys():
                     if title not in current_node_titles.keys():
-                        print(f"new Sub node: {title}")
+                        if verbose: print(f"new Sub node: {title}")
                         self.branches[branch].append(temp_node.branches[branch][temp_node_titles[title]])
                     else:
                         # Recursive Call:
-                        print(f"Not new Sub node: {title}")
+                        if verbose: print(f"Not new Sub node: {title}")
                         self.branches[branch][current_node_titles[title]]._recursize_update(
-                            temp_node.branches[branch][temp_node_titles[title]]
+                            temp_node.branches[branch][temp_node_titles[title]],
+                            verbose=verbose
                         )
+
                 # Removing nodes in this branch that are not present in new design:
                 for node in self.branches[branch]:
                     if node.prediction_title not in temp_node_titles.keys():
-                        print(f"Sub node {title} no longer present. removing...")
+                        if verbose: print(f"Sub node {title} no longer present. removing...")
                         self.branches[branch].pop(self.branches[branch].index(node))
 
 
