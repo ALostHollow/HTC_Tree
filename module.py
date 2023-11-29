@@ -567,7 +567,7 @@ class ClassificationNode(Serializer, Deserializer):
             }
 
 
-    def graph_weak_learner_performance(self, file_path:str='Weak Learner Plot.png'):
+    def graph_weak_learner_performance(self):
         # Variables:
         colors = ['indianred', 'gold', 'teal', 'royalblue','salmon', 'darkorange', 'seagreen', 'darkorchid']
         
@@ -673,8 +673,7 @@ class ClassificationNode(Serializer, Deserializer):
         fig.tight_layout()
         fig.set_size_inches(10, 5)
 
-        # Save Figure:
-        # fig.savefig(file_path, dpi=300)
+        # Returning figure:
         return fig
 
     def _collect_data(self, tree_path:str=None)->list:
