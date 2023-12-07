@@ -96,7 +96,7 @@ class Ensemble(Serializer, Deserializer):
         self.single_class = None
 
     # Class Methods:
-    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False, **kwargs)->None:
+    def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False, **kwargs) -> None:
         start_time = time.time()
         self.train_features = train_features # the column to base predictions on (can be overwritten in Predict)
         self.train_targets = train_targets # the column of classes to predict in training (can be overwritten in Predict)
@@ -116,12 +116,12 @@ class Ensemble(Serializer, Deserializer):
         if verbose: print(f"\nTraining Weak Learners for {train_targets}. {int(clean_data.shape[0]/data.shape[0]*100)}% of data is usable.", flush=True)
 
         # Getting max length of self.model[].estimator() as strings:
-        if verbose: max_length = max([len(str(model.estimator)) for model in self.models])
+        if verbose: max_length = max([len(str(model.__repr__())) for model in self.models])
 
         # Training Each Weak Learner:
         for i in range(0, len(self.models)):
             training_start_time = time.time()
-            if verbose: print(f"Training Learner {i + 1} of {len(self.models)}: {self.models[i].estimator}...", end=' ', flush=True) #/r - start of line
+            if verbose: print(f"Training Learner {i + 1} of {len(self.models)}: {self.models[i].__repr__()}...", end=' ', flush=True) #/r - start of line
             
             # Copy so that we can compare if previously trained:
             temp_model = copy.deepcopy(self.models[i])
@@ -130,7 +130,7 @@ class Ensemble(Serializer, Deserializer):
             temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
 
             # Get amount of spaces required to line up text:
-            if verbose: spaces=(max_length - len(str(self.models[i].estimator))) * ' '
+            if verbose: spaces=(max_length - len(str(self.models[i].__repr__()))) * ' '
             
             # Compare newly trained model:
             if temp_model.score() > self.models[i].score():
@@ -157,7 +157,7 @@ class Ensemble(Serializer, Deserializer):
                 end="\n" * (len(self.models) + 1), # Move cursor down to below loop prints
                 flush=True)
 
-    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, **kwargs)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, **kwargs) -> pd.DataFrame:
         if not self.ready:
             raise Exception("Ensemble is not ready for predictions.")
     
@@ -197,7 +197,7 @@ class Ensemble(Serializer, Deserializer):
 
         return output
   
-    def _clean_Data(self, data:pd.DataFrame)->pd.DataFrame:
+    def _clean_Data(self, data:pd.DataFrame) -> pd.DataFrame:
         # Removing NaN items:
         # clean_data = data[data[self.train_targets].notna()]
         data[self.train_targets] = data[self.train_targets].fillna('NaN')
@@ -208,7 +208,7 @@ class Ensemble(Serializer, Deserializer):
         # Returnining Cleaned Data:
         return data  
     
-    def _weighted_vote(self, row, prediction_title:str)->pd.Series:
+    def _weighted_vote(self, row, prediction_title:str) -> pd.Series:
         '''
         Returns a pd.Series containing the precition and a 'confidence' score (0-1).
 
@@ -233,7 +233,7 @@ class Ensemble(Serializer, Deserializer):
     
     # Class Static Methods:
     @staticmethod
-    def _validate_model(model)->None:
+    def _validate_model(model) -> None:
         try:
             callable(getattr(model, "Train"))
         except:
@@ -245,7 +245,7 @@ class Ensemble(Serializer, Deserializer):
             raise AttributeError(f"{type(model)} has no method 'Predict'\n  Use a wrapper for your models that includes a 'Predict' method")
     
     @staticmethod
-    def _simple_vote(row)->float:
+    def _simple_vote(row) -> float:
         # count all predictions of each class predicted:
         item_counts = {}
         for item in row:
@@ -302,7 +302,7 @@ class ClassificationNode(Serializer, Deserializer):
     
     
     # Class Methods:
-    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs) -> None:
         self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
         
         self._recursive_train(
@@ -313,7 +313,7 @@ class ClassificationNode(Serializer, Deserializer):
             **kwargs
         )
 
-    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs)->None:
+    def _recursive_train(self, data: pd.DataFrame, save_on_train:bool=False, verbose:bool=False, serializer:callable=None, **kwargs) -> None:
         # Training node ensemble:
         if self.ensemble.train_flag or self.ensemble.single_class != None:
             self.ensemble.Train(data, self.input_column, self.prediction_title, verbose=verbose, **kwargs)
@@ -357,7 +357,7 @@ class ClassificationNode(Serializer, Deserializer):
                     )
         
 
-    def Predict(self, input:pd.DataFrame, shallow=False, **kwargs)->pd.DataFrame:
+    def Predict(self, input:pd.DataFrame, shallow=False, **kwargs) -> pd.DataFrame:
         # Node ensemble making predictions:
         node_predictions = self.ensemble.Predict(input, **kwargs)
         
@@ -392,7 +392,7 @@ class ClassificationNode(Serializer, Deserializer):
         return node_predictions
 
 
-    def gernate_design(self, **kwargs)->dict:
+    def gernate_design(self, **kwargs) -> dict:
         design = {
             "root": self._recursive_generate_design()
         }
@@ -401,7 +401,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         return design
 
-    def _recursive_generate_design(self)->dict:
+    def _recursive_generate_design(self) -> dict:
         map = {}
 
         for branch in self.branches.keys():
@@ -527,7 +527,7 @@ class ClassificationNode(Serializer, Deserializer):
         # Returning figure:
         return fig
 
-    def _collect_data(self, tree_path:str=None)->list:
+    def _collect_data(self, tree_path:str=None) -> list:
 
         node_data = {}
         for i in range(0, len(self.ensemble.models)):
@@ -550,7 +550,7 @@ class ClassificationNode(Serializer, Deserializer):
         return data_list
     
 
-    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None)->None:
+    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None) -> None:
         '''
         Recursively sets all the ensemble's <train_flag> attribute.
         See <_set_train_flags> method for explination on how/why/when this is done.
@@ -574,7 +574,7 @@ class ClassificationNode(Serializer, Deserializer):
         if False not in self._recursive_set_train_flags(force_true=force_true, verbose=False, save_on_train=save_on_train, serializer=serializer) and not force_true:
             self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 
-    def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs)->set:
+    def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> set:
         if force_true: 
             self.ensemble.train_flag = True
 
@@ -594,7 +594,7 @@ class ClassificationNode(Serializer, Deserializer):
         return set(flag_list)
 
 
-    def update_from_json(self, file_path:str, verbose:bool=False)->None:
+    def update_from_json(self, file_path:str, verbose:bool=False) -> None:
         '''
         This allows updating of the design file without needing re-train the already present nodes.
         This does not handle new 'root' nodes, it will detect the entire structure as new.
@@ -616,7 +616,7 @@ class ClassificationNode(Serializer, Deserializer):
         if verbose: 
                 print(f"Done. Operations took {time.time()-start_time}s", flush=True)
 
-    def _recursize_update(self, temp_node:'ClassificationNode', verbose:bool=False)->None:
+    def _recursize_update(self, temp_node:'ClassificationNode', verbose:bool=False) -> None:
         # This method could probably be done better
 
         for branch in list(self.branches.keys()):
@@ -663,7 +663,7 @@ class ClassificationNode(Serializer, Deserializer):
 
     # Static Class Methods:
     @staticmethod
-    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None)->'ClassificationNode':
+    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None) -> 'ClassificationNode':
         start_time = time.time() 
         
         # Exceptions:
@@ -700,7 +700,7 @@ class ClassificationNode(Serializer, Deserializer):
         return root_node
     
     @staticmethod
-    def _recursive_build(structure:dict, save_ensembles:bool=True, serializer:callable=None)->'ClassificationNode':
+    def _recursive_build(structure:dict, save_ensembles:bool=True, serializer:callable=None) -> 'ClassificationNode':
         # Building The Sub Nodes in Each Branch:
         branches = {}
         for branch in structure["branches"].keys():
