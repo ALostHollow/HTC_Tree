@@ -531,7 +531,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         node_data = {}
         for i in range(0, len(self.ensemble.models)):
-            node_data[str(self.ensemble.models[i].estimator).replace('()', '')] = self.ensemble.models[i].score()
+            node_data[self.ensemble.models[i].__repr__()] = self.ensemble.models[i].score()
 
         if tree_path == None:
             node_title = self.prediction_title
