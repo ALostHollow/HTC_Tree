@@ -39,13 +39,13 @@ class Serializer:
         
         # Verbose Messages:
         if os.path.exists(file_path) and verbose: 
-            print(f"A file exists at '{file_path}'. Overwritting...", flush=True)
+            print(f"A file exists at '{file_path}'. Overwritting...", flush=True, end=' ')
         
         # Serializing Object:
         with open(file_path, 'wb') as file:
-            if verbose: print(f"Saving {self} at '{file_path}' as Pickle... ", end='', flush=True)
+            # if verbose: print(f"Saving {self} at '{file_path}' as Pickle... ", end='', flush=True)
             pickle.dump(self, file)
-            if verbose: print(f"Done. Operation took {time.time()-start_time}s")
+            if verbose: print(f"Object {self} Saved. Operation took {int((start_time-time.time())/60)}:{((start_time-time.time())%60):0.2f}s", flush=True)
 
         return
     
@@ -95,8 +95,30 @@ class Ensemble(Serializer, Deserializer):
         self.created = time.time() # the time of instance instantiation
         self.single_class = None
 
+    def __repr__(self) -> str:
+        return f"<{'Trained' if self.ready else 'Untrained'} Ensemble() with {len(self.models)} weak learners>"
+
     # Class Methods:
     def Train(self, data:pd.DataFrame, train_features:str, train_targets:str, verbose:bool=False, **kwargs) -> None:
+        '''
+        Trains all the weak learners in this Ensemble.
+        It calls the Train() method for each weak learner in this Ensemble's <models> attribute.
+
+        This function uses the _clean_Data() method to remove labels with less than 2 instances.
+        If the data given has only a single label after this cleaning, no models will be trained
+        and this label will be used as this Ensemble's prediction until it is retrained with more
+        labels.
+
+        Args:
+            data:           (DataFrame) Data to use for training
+            train_features: (str) The column in <data> to use as training features (input column).
+            train_targets:  (str) The column in <data> to use as training targets (label column).
+            verbose:        (bool) If True, print status messages.
+            **kwargs:       (dict) Arguments to pass to each weak learners' Train() method.
+
+        Returns:
+            None        
+        '''
         start_time = time.time()
         self.train_features = train_features # the column to base predictions on (can be overwritten in Predict)
         self.train_targets = train_targets # the column of classes to predict in training (can be overwritten in Predict)
@@ -111,7 +133,6 @@ class Ensemble(Serializer, Deserializer):
             self.ready = True
             self.train_flag = False
             return
-
 
         if verbose: print(f"\nTraining Weak Learners for {train_targets}. {(clean_data.shape[0]/data.shape[0]*100):0.2f}% of data is usable.", flush=True)
 
@@ -158,6 +179,23 @@ class Ensemble(Serializer, Deserializer):
                 flush=True)
 
     def Predict(self, input:pd.DataFrame, prediction_title:str=None, input_column:str=None, **kwargs) -> pd.DataFrame:
+        '''
+        Makes predictions using weak learners in Ensemble().
+
+
+        Args:
+            input:  (DataFrame) Input DataFrame for predictions.
+            prediction_title:   (str) The column title to use for resulting predictions column.
+            input_column:   (str) The column in <input> to use as input.
+        
+        **kwargs:
+            weighted_voting:    (bool) if True, use _weighted_vote to tally weaklearner votes.
+                                       Else it will use an unweighted vote tallying method.
+            verbose:    (bool) If True, print status messages.
+
+        Returns:
+            output: (DataFrame) Copy of <input> with added predictions column
+        '''
         if not self.ready:
             raise Exception("Ensemble is not ready for predictions.")
     
@@ -198,8 +236,20 @@ class Ensemble(Serializer, Deserializer):
         return output
   
     def _clean_Data(self, data:pd.DataFrame) -> pd.DataFrame:
-        # Removing NaN items:
-        # clean_data = data[data[self.train_targets].notna()]
+        '''
+        This function will replace empty values with a str 'NaN' such that an 
+        'empty' prediction is possible.
+        This function will remove lables with less than 2 instances to allow
+        a test/train split.
+        TODO this should us a variable for min instances allowed.
+
+        args:
+            data:   (DataFrame) The data to be cleaned.
+
+        Returns:
+            data:   (DataFrame) The given <data> that has been cleaned.
+        '''
+        # Filling Na values with 'NaN':
         data[self.train_targets] = data[self.train_targets].fillna('NaN')
 
         # Removing non-duplicate data: (at least 2 items must be present in each class)
@@ -214,6 +264,13 @@ class Ensemble(Serializer, Deserializer):
 
         The confidence score is the highest sum of unique prediction weights over total predictions.
         Effectively counting disagreeing weights as 0.0 then averaging all the weights.
+
+        Args:
+            row:    (dict-like) The row containing predictions to tally and weigh votes of.
+            prediction_title:   (str) The title to use for column of result of vote.
+
+        Returns:
+                (Series) The resulting prediction and confidence score as a pd.Series
         '''
         # Get sum weights for each unique prediction:
         item_counts = {}
@@ -234,6 +291,15 @@ class Ensemble(Serializer, Deserializer):
     # Class Static Methods:
     @staticmethod
     def _validate_model(model) -> None:
+        '''
+        Validates the given object.
+        It checks:
+            if the object is callable
+            if it contains a 'Train' method
+            if it contains a 'Predict' method
+
+        It will taise an AttributeError if any of these are false
+        '''
         try:
             callable(getattr(model, "Train"))
         except:
@@ -246,6 +312,16 @@ class Ensemble(Serializer, Deserializer):
     
     @staticmethod
     def _simple_vote(row) -> float:
+        '''
+        This simply tallys the votes and returns the agreement of the most popular,
+        or first most popular one by index on ties.
+
+        Args:
+            row:    (dict) The row of predictions to tally votes of.
+
+        Returns:
+            (float) The agreement of the most popular prediction.
+        '''
         # count all predictions of each class predicted:
         item_counts = {}
         for item in row:
@@ -303,6 +379,22 @@ class ClassificationNode(Serializer, Deserializer):
     
     # Class Methods:
     def Train(self, data: pd.DataFrame, force_retrain:bool=False, save_on_train:bool=True, verbose:bool=False, serializer:callable=None, **kwargs) -> None:
+        '''
+        This will recursively (using _recursive_train) call the Training method for Ensembles in tree.
+        This is based on the Ensemble's <train_flag>.
+        How these are set is described in _set_train_flags.
+
+        Args:
+            data:   (DataFrame) The data to be used in training.
+            force_retrain:  (bool) If True, all Ensembles will always be trianed
+            save_on_train:  (bool) If True, Ensembles will be saved after their training is done.
+            serializer: (callable) If set, this will be used when saving Ensembles.
+        
+        **kwargs are passed to both the Ensembles Train method and the <serializer>
+            
+        Returns:
+            None
+        '''
         self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
         
         self._recursive_train(
@@ -559,6 +651,20 @@ class ClassificationNode(Serializer, Deserializer):
         Training or not training an Esemble() is decided based on the ensemble's attribute <train_flag>.
         If True, the Ensemble() will be trained.
 
+        Note:   <train_flag> is set to False when training that Ensemble finishes,
+                and set to True on instantiation.
+
+        Args:
+            force_true: (bool) if True, set all Ensembles <train_flag> to True
+            verbose:    (bool) if True, print status messages
+            save_on_train:  (bool) if True, save Ensemble once its training is done.
+            serializer: (callable) if set, use this when saving Ensembles.
+        
+        Returns:
+            None
+        '''
+
+        '''
         This method could be hard to interpret, so I'll provide a few different ways of explaining.
 
         Truth Table: 
@@ -595,16 +701,16 @@ class ClassificationNode(Serializer, Deserializer):
                 self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 
     def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> set:
-        # Sets own Ensemble() <train_flag> to True:
+        # Sets own Ensemble() <train_flag> to True and saves if <save_on_train>:
         if force_true: 
             self.ensemble.train_flag = True
 
-        # Save Ensemble:
-        if save_on_train:
-            if serializer == None:
-                self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
-            else:
-                serializer(self.ensemble, self.ensemble_path, **kwargs)
+            # Save Ensemble:
+            if save_on_train:
+                if serializer == None:
+                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
+                else:
+                    serializer(self.ensemble, self.ensemble_path, **kwargs)
 
         # Get remaining Ensemble()s <train_flag>s
         flag_list = [self.ensemble.train_flag]
@@ -620,6 +726,12 @@ class ClassificationNode(Serializer, Deserializer):
     def all_ensembles_ready(self) -> bool:
         '''
         Will return True if all Ensemble()s are ready for prediction, and False otherwise.
+
+        Args:
+            None
+        
+        Returns:
+            (bool) True if all Ensembles are ready, False otherwise.
         '''
         return False not in self._recursive_get_ready_flags()
 
@@ -639,6 +751,16 @@ class ClassificationNode(Serializer, Deserializer):
         '''
         This allows updating of the design file without needing re-train the already present nodes.
         This does not handle new 'root' nodes, it will detect the entire structure as new.
+
+        I suggest making this modification by modifying the build file not using an update file
+        if you don't want to re-train entire tree.
+
+        Args:
+            file_path:  (str) The path to the Design Json to update from.
+            verbose:    (bool) If True, print status messages
+
+        Returns:
+            None
         '''
         # Exceptions:
         if not os.path.exists(file_path):
@@ -704,6 +826,19 @@ class ClassificationNode(Serializer, Deserializer):
     # Static Class Methods:
     @staticmethod
     def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None) -> 'ClassificationNode':
+        '''
+        This builds a tree of ClassificationNodes from the given Design File.
+        See documentation for formatting of Design Files.
+
+        Args:
+            file_path:  (str) The path to the Design File to use.
+            verbose:    (bool) If True, print status messages.
+            save_ensemble:  (bool) If True, save each Ensemble when its created from Deisgn File.
+            serializer: (callable) If set, use this when saving Ensembles.
+
+        Returns:
+            root_node:  (ClassificationNode) The root node of the generated tree structure.
+        '''
         start_time = time.time() 
         
         # Exceptions:

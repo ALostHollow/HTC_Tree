@@ -44,29 +44,37 @@ class SKLearn_Model_Wrapper():
     
     # Class Methods:
     def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, **kwargs) -> None:
-        # features: the column of predictions is based on (input column title)
-        # targets: the column of classes to predict (classes column title)
-
-        # Runs the training operations that must be done per simple model
         '''
+        Runs the training operations for this model.
+
+        args:
+            features:   (list | ndarray | DataFrame) The arraylike to use as input in training.
+            targets:    (list | ndarray | DataFrame) The arraylike to use as targets for training.
+
         kwargs:
             use_best: (bool) False
             search_method: (str) 'Random'. could be 'Random' or 'Grid'
             n_iter: (int) 20
             cv_folds: (int) 2
+            n_jobs: (int) -2
+
+        Returns:
+            None
         '''
         
         # Parsing keyword arguments:
+        parse = lambda x, arg, defalt : x[arg] if arg in x else defalt # default value is 20
         #   use_best:
         use_best = 'use_best' in kwargs and kwargs['use_best']
         #   search_method:
         if 'search_method' in kwargs: search_method = kwargs['search_method']
         else: search_method = 'Random' # default value is 'Random'
         #   n_iter:
-        result = lambda x, arg, defalt : x[arg] if arg in x else defalt # default value is 20
-        n_iter = result(kwargs, 'n_iter', 20)
+        n_iter = parse(kwargs, 'n_iter', 20)
         #   cv_folds:
-        cv_folds = result(kwargs, 'cv_folds', 2)
+        cv_folds = parse(kwargs, 'cv_folds', 2)
+        #   n_jobs:
+        n_jobs = parse(kwargs, 'n_jobs', -2)
 
         if self.verbose: 
             start_time = time.time()
@@ -94,6 +102,7 @@ class SKLearn_Model_Wrapper():
                 param_grid=parameters,
                 verbose=(1 if self.verbose else 0),
                 cv=cv_folds,
+                n_jobs = n_jobs
             )
         
         # Create Classifier w/ RandomizedSearchCV:
@@ -105,6 +114,7 @@ class SKLearn_Model_Wrapper():
                 verbose=(1 if self.verbose else 0),
                 cv=cv_folds,
                 n_iter=n_iter,
+                n_jobs = n_jobs
             )
 
         else:
@@ -181,29 +191,43 @@ class XGBoost_Model_Wrapper():
         self.best_params = None
         self.test_acc = 0 # used in comparison so should be set on __init__
     
+
     def __repr__(self) -> str:
         return "XBGoost Classifier"
 
+
     def Train(self, features: list | np.ndarray | pd.DataFrame, targets: list | np.ndarray | pd.DataFrame, **kwargs) -> None:
         '''
+        Runs the training operations for this model.
+
+        args:
+            features:   (list | ndarray | DataFrame) The arraylike to use as input in training.
+            targets:    (list | ndarray | DataFrame) The arraylike to use as targets for training.
+
         kwargs:
             use_best: (bool) False
             search_method: (str) 'Random'. could be 'Random' or 'Grid'
             n_iter: (int) 20
             cv_folds: (int) 2
+            n_jobs: (int) -2
+
+        Returns:
+            None
         '''
                 
         # Parsing keyword arguments:
+        parse = lambda x, arg, defalt : x[arg] if arg in x else defalt # default value is 20
         #   use_best:
         use_best = 'use_best' in kwargs and kwargs['use_best']
         #   search_method:
         if 'search_method' in kwargs: search_method = kwargs['search_method']
         else: search_method = 'Random' # default value is 'Random'
         #   n_iter:
-        result = lambda x, arg, defalt : x[arg] if arg in x else defalt # default value is 20
-        n_iter = result(kwargs, 'n_iter', 20)
+        n_iter = parse(kwargs, 'n_iter', 20)
         #   cv_folds:
-        cv_folds = result(kwargs, 'cv_folds', 2)
+        cv_folds = parse(kwargs, 'cv_folds', 2)
+        #   n_jobs:
+        n_jobs = parse(kwargs, 'n_jobs', -2)
         
         # Generating parameter grid to use for search:
         if use_best and self.best_params != None:
@@ -222,22 +246,23 @@ class XGBoost_Model_Wrapper():
         # Create Classifier w/ Gridsearch: 
         # (It will default to this is HP space is lower than the iteration limit)
         if search_method == "Grid" or hyperparam_space_size <= n_iter:
-            print(f"Grid Search of {hyperparam_space_size} hyperspace", end=' ',flush=True)
+            # print(f"Grid Search of {hyperparam_space_size} hyperspace", end=' ',flush=True)
             self.classifier = GridSearchCV(
                 estimator=self.estimator,
                 param_grid=parameters,
-                n_jobs = 10,
+                n_jobs = n_jobs,
                 cv = cv_folds,
                 verbose=False
             )
 
         # Create Classifier w/ RandomizedSearchCV:
         elif search_method == "Random":
-            print(f"Random Search of {hyperparam_space_size} hyperspace", end=' ',flush=True)
+            # print(f"Random Search of {hyperparam_space_size} hyperspace", end=' ',flush=True)
             self.classifier = RandomizedSearchCV(
                 estimator=self.estimator,
                 param_distributions=parameters,
                 cv=cv_folds,
+                n_jobs = n_jobs,
                 n_iter=n_iter,
             )
 
