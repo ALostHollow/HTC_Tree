@@ -583,7 +583,7 @@ class ClassificationNode(Serializer, Deserializer):
             axes[row, col].set_position([pos.x0, pos.y0, pos.width - 0.02, pos.height])
 
             # Annote Bars:
-            if 'Fixed Class' not in x_labels:
+            if 'Fixed Class' not in x_labels and 0.0 != sum(values):
                 for bar in bars:
                     height = bar.get_height()
                     axes[row, col].annotate(
