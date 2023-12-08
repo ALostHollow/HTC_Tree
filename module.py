@@ -491,17 +491,18 @@ class ClassificationNode(Serializer, Deserializer):
             axes[row, col].set_position([pos.x0, pos.y0, pos.width - 0.02, pos.height])
 
             # Annote Bars:
-            for bar in bars:
-                height = bar.get_height()
-                axes[row, col].annotate(
-                    '{:.3f}'.format(height),
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, -5),
-                    fontsize=4,
-                    textcoords="offset points",
-                    ha='center', 
-                    va='bottom',
-                )
+            if 'Fixed Class' not in x_labels:
+                for bar in bars:
+                    height = bar.get_height()
+                    axes[row, col].annotate(
+                        '{:.3f}'.format(height),
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, -5),
+                        fontsize=4,
+                        textcoords="offset points",
+                        ha='center', 
+                        va='bottom',
+                    )
         
         # Hide remaining subplots in grid:
         for i in range(len(data), n_rows*sqrt):
@@ -530,12 +531,14 @@ class ClassificationNode(Serializer, Deserializer):
     def _collect_data(self, tree_path:str=None) -> list:
 
         node_data = {}
-        for i in range(0, len(self.ensemble.models)):
-            node_data[self.ensemble.models[i].__repr__()] = self.ensemble.models[i].score()
+        if self.ensemble.single_class:
+            node_data['Fixed Class'] = 1.0
+        else:
+            for i in range(0, len(self.ensemble.models)):
+                node_data[self.ensemble.models[i].__repr__()] = self.ensemble.models[i].score()
 
         if tree_path == None:
             node_title = self.prediction_title
-            
         else:
             node_title = tree_path + '\n' + self.prediction_title
         
@@ -587,7 +590,7 @@ class ClassificationNode(Serializer, Deserializer):
         The <force_true> set of conditions are sorted out by passing this argument to _recursive_set_train_flags.
         '''
         if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer):
-            if verbose: print(f"All models Trained, re-training all models.")
+            if verbose: print(f"All models Trained, re-training all models.\n")
             if not force_true:
                 self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 

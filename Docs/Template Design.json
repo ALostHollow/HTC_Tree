@@ -1,0 +1,35 @@
+{
+    "root": {
+        "ensemble path": "<path to pickled Ensemble()>",
+        "input column": "<input column>",
+        "prediction title": "<prediction title>",
+        "branches": {
+            "*": [ 
+                {
+                    "ensemble path": "<path to pickled Ensemble()>",
+                    "input column": "<input column>",
+                    "prediction title": "<prediction title>",
+                    "branches": {}
+                },
+                {
+                    "ensemble path": "<path to pickled Ensemble()>",
+                    "input column": "<input column>",
+                    "prediction title": "<prediction title>",
+                    "branches": {}
+                }
+            ],
+            "<prediction label>": [
+                {
+                    "ensemble path": "<path to pickled Ensemble()>",
+                    "input column": "<input column>",
+                    "prediction title": "<prediction title>",
+                    "branches": {}
+                }
+            ]
+        }
+    },
+    "parameters": {
+        "verbose": true,
+        "save_ensembles": true
+    }    
+}
