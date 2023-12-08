@@ -552,29 +552,47 @@ class ClassificationNode(Serializer, Deserializer):
 
     def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None) -> None:
         '''
-        Recursively sets all the ensemble's <train_flag> attribute.
-        See <_set_train_flags> method for explination on how/why/when this is done.
-        TODO attribute and return descriptions
+        Recursively sets all the Ensemble()'s <train_flag> attribute.
+        Training or not training an Esemble() is decided based on the ensemble's attribute <train_flag>.
+        If True, the Ensemble() will be trained.
+
+        This method could be hard to interpret, so I'll provide a few different ways of explaining.
+
+        Truth Table: 
+        F = <force_true>, E1 = an Ensemble(), E2 = another Ensemble()
+         F   E1 E2  
+        |F| |F| |F|  -> Set all <train_flag> to T
+        |F| |F| |T|  -> Don't touch <train_flag>
+        |F| |T| |F|  -> Don't touch <train_flag>
+        |F| |T| |T|  -> Don't touch <train_flag>
+        |T| |F| |F|  -> Set all <train_flag> to T
+        |T| |F| |T|  -> Set all <train_flag> to T
+        |T| |T| |F|  -> Set all <train_flag> to T
+        |T| |T| |T|  -> Set all <train_flag> to T
+
+        This table represents a tree with only two Ensembles(), but conditions would hold 
+        regardless of adding more as checking these conditions is done by checking for the
+        presence of a True value in the list of flag values.
+        See 'conditions' below for summary explanation.
+        
+        This results in these conditions:
+            If all Ensemble()s in the tree have <train_flag> False: Set all <train_flag>s to True
+            If any Ensemble()s in the tree are set to True: Dont change any <train_flag>s
+            If <force_true> is True: Set all <train_flag>s to True (This overrides the above two conditions).
+
+        Effectively: 
+            if True not in set(<list of trained flags>) or <force_true>:
+                Set all <train_flag>s to True 
+
+        The <force_true> set of conditions are sorted out by passing this argument to _recursive_set_train_flags.
         '''
-        # This may be hard to read so I'll try to explain:
-        # Training or not training an ensebmle is decided based on the ensemble's attribute <train_flag>.
-        # If True, the ensemble will be trained.
-
-        # The method <_recursive_set_train_flags> recursively iterates over the tree and will set these flags to True if:
-        #   - The <force_true> parameter is set
-        #   - No ensembles in the tree have the attribute <traing_flag> set to True
-        # Otherwise it doesn't change any of these attributes
-        # These two cases are handle by the first call to the <_recursive_set_train_flags> method, and the second call, respectively.
-
-        # This allows:
-        # 1. A call that will always train every ensemble: if <force_true> is True
-        # 2. Every call will train all ensembles that have not yet been trained: due to ensemble's <ready> attribute being False on __init__ and only being set after being trained.
-        # 3. Every call will train all ensembles that were left untrained after a previous (1. call): due to the program being stopped before all models were trained.
-
-        if False not in self._recursive_set_train_flags(force_true=force_true, verbose=False, save_on_train=save_on_train, serializer=serializer) and not force_true:
-            self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
+        if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer):
+            if verbose: print(f"All models Trained, re-training all models.")
+            if not force_true:
+                self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 
     def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> set:
+        # Sets own Ensemble() <train_flag> to True:
         if force_true: 
             self.ensemble.train_flag = True
 
@@ -585,13 +603,33 @@ class ClassificationNode(Serializer, Deserializer):
             else:
                 serializer(self.ensemble, self.ensemble_path, **kwargs)
 
+        # Get remaining Ensemble()s <train_flag>s
         flag_list = [self.ensemble.train_flag]
         for branch in self.branches.keys():
             for node in self.branches[branch]:
                 for item in node._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs):
                     flag_list.append(item)
+       
+        # return <train_flag>s
+        return flag_list
 
-        return set(flag_list)
+
+    def all_ensembles_ready(self) -> bool:
+        '''
+        Will return True if all Ensemble()s are ready for prediction, and False otherwise.
+        '''
+        return False not in self._recursive_get_ready_flags()
+
+    def _recursive_get_ready_flags(self):
+        # Get remaining Ensemble()s <train_flag>s
+        flag_list = [self.ensemble.ready]
+        for branch in self.branches.keys():
+            for node in self.branches[branch]:
+                for item in node._recursive_get_ready_flags():
+                    flag_list.append(item)
+       
+        # return <train_flag>s
+        return flag_list
 
 
     def update_from_json(self, file_path:str, verbose:bool=False) -> None:
@@ -659,7 +697,6 @@ class ClassificationNode(Serializer, Deserializer):
                     if node.prediction_title not in temp_node_titles.keys():
                         if verbose: print(f"Sub node {title} no longer present. removing...")
                         self.branches[branch].pop(self.branches[branch].index(node))
-
 
     # Static Class Methods:
     @staticmethod
