@@ -113,7 +113,7 @@ class Ensemble(Serializer, Deserializer):
             return
 
 
-        if verbose: print(f"\nTraining Weak Learners for {train_targets}. {int(clean_data.shape[0]/data.shape[0]*100)}% of data is usable.", flush=True)
+        if verbose: print(f"\nTraining Weak Learners for {train_targets}. {(clean_data.shape[0]/data.shape[0]*100):0.2f}% of data is usable.", flush=True)
 
         # Getting max length of self.model[].estimator() as strings:
         if verbose: max_length = max([len(str(model.__repr__())) for model in self.models])
@@ -134,10 +134,10 @@ class Ensemble(Serializer, Deserializer):
             
             # Compare newly trained model:
             if temp_model.score() > self.models[i].score():
-                if verbose: print(f"{spaces}Done ({time.time() - training_start_time}s)", flush=True)
+                if verbose: print(f"{spaces}New model was better     ({(time.time() - training_start_time):0.2f}s)", flush=True)
                 self.models[i] = temp_model
             else:
-                if verbose: print(f"{spaces}New model was not better ({time.time() - training_start_time}s)", flush=True)
+                if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
 
         # Mark self as Ready for predictions and as not needing training:
         self.ready = True
@@ -149,8 +149,8 @@ class Ensemble(Serializer, Deserializer):
             self.training_time = time.time() - start_time
             cursor_up_chars = "\033[A" * (len(self.models) + 1) # Move cursor up to where the print above the loop was:
             result_str1 = 'All Weak Learners Trained for'
-            result_str2 = f"{int(clean_data.shape[0]/data.shape[0]*100)}% of data was used. "
-            result_str3 = f"Operations took {self.training_time}s"
+            result_str2 = f"{(clean_data.shape[0]/data.shape[0]*100):0.2f}% of data was used. "
+            result_str3 = f"Operations took {int(self.training_time/60)}:{(self.training_time%60):0.2f}s"
 
             # Report Result:
             print(cursor_up_chars + result_str1 + ' ' + train_targets + '. ' + result_str2 + result_str3,
@@ -546,7 +546,7 @@ class ClassificationNode(Serializer, Deserializer):
         
         for branch in self.branches.keys():
             for node in self.branches[branch]:
-                for item in node._collect_data(tree_path=node_title+"='"+branch+"'"):
+                for item in node._collect_data(tree_path=node_title+": '"+branch+"'"):
                     data_list.append(item)
             
 
@@ -574,7 +574,7 @@ class ClassificationNode(Serializer, Deserializer):
         |T| |T| |T|  -> Set all <train_flag> to T
 
         This table represents a tree with only two Ensembles(), but conditions would hold 
-        regardless of adding more as checking these conditions is done by checking for the
+        regardless of adding more; checking these conditions is done by checking for the
         presence of a True value in the list of flag values.
         See 'conditions' below for summary explanation.
         
