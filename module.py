@@ -43,7 +43,6 @@ class Serializer:
         
         # Serializing Object:
         with open(file_path, 'wb') as file:
-            # if verbose: print(f"Saving {self} at '{file_path}' as Pickle... ", end='', flush=True)
             pickle.dump(self, file)
             if verbose: print(f"Object {self} Saved. Operation took {int((start_time-time.time())/60)}:{((start_time-time.time())%60):0.2f}s", flush=True)
 
@@ -128,7 +127,7 @@ class Ensemble(Serializer, Deserializer):
 
         if len(clean_data[self.train_targets].unique()) == 1:
             # warnings.warn(f"'{train_targets}' given training data with a single class.\nAll predictions will be this single class: '{clean_data[self.train_targets].unique()[0]}'.")
-            print(f"Warning: '{train_targets}' given training data with a single valid class. All predictions will be '{clean_data[self.train_targets].unique()[0]}'.")
+            print(f"Warning: '{train_targets}' given training data with a single valid class. All predictions will be '{clean_data[self.train_targets].unique()[0]}'.", flush=True)
             self.single_class = clean_data[self.train_targets].unique()[0]
             self.ready = True
             self.train_flag = False
@@ -206,23 +205,21 @@ class Ensemble(Serializer, Deserializer):
         
         if not input_column: input_column = self.train_features
         if not prediction_title: prediction_title = self.train_targets
-        if verbose: print(f"Ensemble predicting for {prediction_title}")
 
         if self.single_class != None:
             output = input.copy(deep=True)
             output[prediction_title] = self.single_class
-            output[prediction_title + " confidence"] = 1
+            output[prediction_title + " confidence"] = 1.0
+            if verbose: print(f"Fixed Label, predictions will be '{self.single_class}'", flush=True)
             return output
 
         predictions_df = pd.DataFrame(index=input.index)
 
+        if verbose: print(f"Ensemble predicting for {prediction_title}... ", end='', flush=True)
+
         # Run predictions for each model in ensemble:
         for model in self.models:
-            if verbose: print(f"model {self.models.index(model)} of {len(self.models)} predicting", end='\r', flush=True)
             predictions_df[str(self.models.index(model))] = model.Predict(input, input_column)
-        
-        # print(predictions_df.head())
-        if verbose: print(f"All Learners made predictions", end='\n\n', flush=True)
 
         # Tally model votes:
         predictions_df.reindex(input.index)
@@ -232,6 +229,8 @@ class Ensemble(Serializer, Deserializer):
         else:
             output[prediction_title] = predictions_df.mode(axis=1)[0]
             output[prediction_title + " confidence"] = predictions_df.apply(self._simple_vote, axis=1)
+
+        if verbose: print(f"Done.", flush=True)
 
         return output
   
@@ -418,7 +417,7 @@ class ClassificationNode(Serializer, Deserializer):
                     serializer(self.ensemble, self.ensemble_path, **kwargs)
 
         elif verbose:
-            print(f"'{self.ensemble.train_targets}' ensemble already trained.")
+            print(f"'{self.ensemble.train_targets}' ensemble already trained.", flush=True)
 
         # Check if this is a leaf node:
         if self.branches not in [None, {}]:
@@ -450,9 +449,14 @@ class ClassificationNode(Serializer, Deserializer):
         
 
     def Predict(self, input:pd.DataFrame, shallow=False, **kwargs) -> pd.DataFrame:
+        # Parse Kwargs:
+        verbose = 'verbose' in kwargs and kwargs['verbose']
+
         # Node ensemble making predictions:
         node_predictions = self.ensemble.Predict(input, **kwargs)
-        
+        if verbose: pass
+
+
         # Check if this is a leaf node:
         if self.branches not in [None, {}] and shallow == False:
             # For each key classification:
@@ -465,23 +469,32 @@ class ClassificationNode(Serializer, Deserializer):
                 
                 # Check if sub_node_data is empty:
                 if sub_node_data.shape[0] == 0:
-                    # print(f"no data to use for '{self.prediction_title}' at '{branch}'. {sub_node_data.shape[0]}/{node_predictions.shape[0]}")
+                    if verbose: print(f"No data present for '{self.prediction_title}'='{branch}'. {sub_node_data.shape[0]}/{node_predictions.shape[0]}", flush=True)
                     continue
+                elif verbose: print(f"Data present for '{self.prediction_title}'='{branch}.  {sub_node_data.shape[0]}/{node_predictions.shape[0]}", flush=True)
+                
+                sub_node_predictions = sub_node_data
+                # Set this as we want to keep each nodes predictions we have to
+                # pass them to the next as this is how we merge different node's
+                #  prediction DataFrames
 
                 # Run predictions for each branch: (New Columns)
                 for node in self.branches[branch]:
-                    # Recusrsive Call:
-                    sub_node_predictions = node.Predict(input=sub_node_data, **kwargs)
-                    # print(sub_node_predictions.head())
-                    if branch != '*':
+                    # Recusrsive Call: (each node's predictions are passed to the next here)
+                    sub_node_predictions = node.Predict(input=sub_node_predictions, **kwargs)
+
+                    # Merging Prediction DataFrames:
+                    if branch != '*': # Specific Label Branch:
                         column_indexer = sub_node_predictions.columns
                         row_indexer = node_predictions[self.prediction_title] == branch
                         node_predictions.loc[row_indexer, column_indexer] = sub_node_predictions[column_indexer]
                         node_predictions.loc[row_indexer, column_indexer] = sub_node_predictions[column_indexer]
-                    else:
-                        node_predictions = sub_node_predictions                    
-
-        return node_predictions
+                    else: # Wild Card Branch:
+                        node_predictions = sub_node_predictions 
+                
+                if verbose: print(f"All predictions made for '{self.prediction_title}'='{branch}'\n", flush=True)
+  
+        return node_predictions.replace('NaN', np.nan)
 
 
     def gernate_design(self, **kwargs) -> dict:
@@ -696,7 +709,7 @@ class ClassificationNode(Serializer, Deserializer):
         The <force_true> set of conditions are sorted out by passing this argument to _recursive_set_train_flags.
         '''
         if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer):
-            if verbose: print(f"All models Trained, re-training all models.\n")
+            if verbose: print(f"All models Trained, re-training all models.\n", flush=True)
             if not force_true:
                 self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
 
@@ -784,18 +797,18 @@ class ClassificationNode(Serializer, Deserializer):
 
         for branch in list(self.branches.keys()):
             if branch not in temp_node.branches.keys():
-                if verbose: print(f"Branch '{branch}' no longer present, removing")
+                if verbose: print(f"Branch '{branch}' no longer present, removing", flush=True)
                 self.branches.pop(branch)
 
         for branch in temp_node.branches.keys():
-            if verbose: print(f"\nBranch: '{branch}'", end=' ')
+            if verbose: print(f"\nBranch: '{branch}'", end=' ', flush=True)
 
             if branch not in self.branches.keys():
-                if verbose: print('new branch')
+                if verbose: print('new branch', flush=True)
                 self.branches[branch] = temp_node.branches[branch]
 
             else:
-                if verbose: print('not new. Checking sub nodes:')
+                if verbose: print('not new. Checking sub nodes:', flush=True)
                 current_node_titles = {}
                 for node in self.branches[branch]:
                     current_node_titles[node.prediction_title] = self.branches[branch].index(node)
@@ -807,11 +820,11 @@ class ClassificationNode(Serializer, Deserializer):
                 # Adding new nodes in this branch, and recursive call for already present nodes:
                 for title in temp_node_titles.keys():
                     if title not in current_node_titles.keys():
-                        if verbose: print(f"new Sub node: {title}")
+                        if verbose: print(f"new Sub node: {title}", flush=True)
                         self.branches[branch].append(temp_node.branches[branch][temp_node_titles[title]])
                     else:
                         # Recursive Call:
-                        if verbose: print(f"Not new Sub node: {title}")
+                        if verbose: print(f"Not new Sub node: {title}", flush=True)
                         self.branches[branch][current_node_titles[title]]._recursize_update(
                             temp_node.branches[branch][temp_node_titles[title]],
                             verbose=verbose
@@ -820,7 +833,7 @@ class ClassificationNode(Serializer, Deserializer):
                 # Removing nodes in this branch that are not present in new design:
                 for node in self.branches[branch]:
                     if node.prediction_title not in temp_node_titles.keys():
-                        if verbose: print(f"Sub node {title} no longer present. removing...")
+                        if verbose: print(f"Sub node {title} no longer present. removing...", flush=True)
                         self.branches[branch].pop(self.branches[branch].index(node))
 
     # Static Class Methods:
