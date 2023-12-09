@@ -52,6 +52,10 @@ Sample Design File:
 
 ```
 
+## Training a Tree
+![Diagram of training HTC_Tree](Docs\Diagrams\HTC_Tree_Data_Flow_Diagram.png)
+
+
 
 ## Visualizing a Tree
 
