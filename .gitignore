@@ -1,12 +1,5 @@
-# Testing Folders:
-Data/
-Designs/
-Ensembles/
-Graphs/
-
-# Testing .py files:
-test.py
-
+# Testing Folder:
+tests/
 
 
 # =================== Template .gitignore Items ===================
