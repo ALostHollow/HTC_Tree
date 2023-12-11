@@ -53,7 +53,7 @@ Sample Design File:
 ```
 
 ## Training a Tree
-![Diagram of training HTC_Tree](docs\Diagrams\HTC_Tree_Data_Flow_Diagram.png)
+![Diagram of training HTC_Tree](docs/Diagrams/HTC_Tree_Data_Flow_Diagram.png)
 
 
 
