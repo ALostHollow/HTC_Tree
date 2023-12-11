@@ -4,7 +4,7 @@ This repo contains a structure that represents the hierarchy of such classificat
 
 This is a tree with each node representing a single classification and subsequent branches representing further classifications based on the outputs of the current node.
 
-![Diagram of an example HTC_Tree](Docs/Diagrams/HTS_Example_Diagram.png)
+![Diagram of an example HTC_Tree](docs/Diagrams/HTS_Example_Diagram.png)
 <br>This diagram is an example of HTC_Tree structure that would predict Ford and Porsche car models and the color of the car (and for Porsches, the number of doors).
 <br>This design would assume that, for whatever reason, Porsche models are 'easier' to predict if its first subdivided into the number of doors.
 
@@ -53,7 +53,7 @@ Sample Design File:
 ```
 
 ## Training a Tree
-![Diagram of training HTC_Tree](Docs\Diagrams\HTC_Tree_Data_Flow_Diagram.png)
+![Diagram of training HTC_Tree](docs\Diagrams\HTC_Tree_Data_Flow_Diagram.png)
 
 
 
