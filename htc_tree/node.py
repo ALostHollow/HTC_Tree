@@ -357,7 +357,7 @@ class ClassificationNode(Serializer, Deserializer):
         self.input_column = input_column
         self.ensemble=ensemble
         self.branches=branches
-        self.ensemble_path = f"Ensembles/{prediction_title} ensemble-{self.node_id}.pkl"
+        self.ensemble_path = f"{prediction_title} ensemble-{self.node_id}.pkl"
 
         # Save ensemble at new location: TODO make callable...
         if ensemble_path != self.ensemble_path and save_ensembles:

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="htc_tree",
-    version="0.0.2",
+    version="0.0.3",
     author="Rowan Andruko",
     description="A framework for Hierarchical Text Classification.",
     long_description="A framework for Hierarchical Text Classification. I WILL ADD A LONG DESC LATER",
