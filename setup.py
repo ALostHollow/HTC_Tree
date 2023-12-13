@@ -5,6 +5,7 @@ setup(
     version="0.0.1",
     author="Rowan Andruko",
     description="A framework for Hierarchical Text Classification.",
+    long_description="A framework for Hierarchical Text Classification. I WILL ADD A LONG DESC LATER",
     packages=find_packages(exclude=['tests', 'tests.*', '.git*', 'docs']),
     classifiers=[
         "Programming Language :: Python :: 3",
