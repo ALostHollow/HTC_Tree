@@ -18,8 +18,6 @@ setup(
           'scikit-learn',
           'xgboost',
           'matplotlib',
-          'pickle'
-
       ],
     python_requires=">=3.11",
     keywords=['python', 'text classification', 'hierarchical', 'text labeling']
