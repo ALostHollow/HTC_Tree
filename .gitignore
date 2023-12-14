@@ -1,6 +1,7 @@
 # Testing Folder:
 tests/
-
+test.*
+*.pkl
 
 # =================== Template .gitignore Items ===================
 # Byte-compiled / optimized / DLL files

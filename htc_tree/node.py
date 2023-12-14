@@ -339,7 +339,10 @@ class Ensemble(Serializer, Deserializer):
 # A node in the hierarchy:
 class ClassificationNode(Serializer, Deserializer):
     # Class Method Overloads:
-    def __init__(self, prediction_title:str, ensemble:Ensemble=None, ensemble_path:str=None, input_column:str='client description', node_id:str=None, branches:dict=None, save_ensembles:bool=True, serializer:callable=None):
+    def __init__(self, prediction_title:str, input_column:str, ensemble:Ensemble=None, ensemble_path:str=None, node_id:str=None, branches:dict=None, save_ensembles:bool=True, serializer:callable=None, **kwargs):
+        '''
+        kwargs are passed to serializer
+        '''
         # Exceptions:
         if ensemble == None and ensemble_path == None:
             raise ValueError(f"ClassificationNode expects either an <ensemble> or and <ensemble_path>. Neither supplied.")
@@ -359,14 +362,14 @@ class ClassificationNode(Serializer, Deserializer):
         self.branches=branches
         self.ensemble_path = f"{prediction_title} ensemble-{self.node_id}.pkl"
 
-        # Save ensemble at new location: TODO make callable...
+        # Save ensemble at new location:
         if ensemble_path != self.ensemble_path and save_ensembles:
             if serializer == None:
                 self.ensemble.to_pickle(self.ensemble_path)
             else:
-                serializer(self, self.ensemble_path)
+                serializer(self.ensemble, self.ensemble_path, **kwargs)
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         part1 = f"Predicts '{self.prediction_title}'"
         part2 = 'has no branches' if self.branches == {} else f"has {len(self.branches.keys())} branches"
 
@@ -838,7 +841,7 @@ class ClassificationNode(Serializer, Deserializer):
 
     # Static Class Methods:
     @staticmethod
-    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None) -> 'ClassificationNode':
+    def build_from_json(file_path:str, verbose:bool=False, save_ensembles:bool=False, serializer:callable=None, **kwargs) -> 'ClassificationNode':
         '''
         This builds a tree of ClassificationNodes from the given Design File.
         See documentation for formatting of Design Files.
@@ -877,7 +880,8 @@ class ClassificationNode(Serializer, Deserializer):
         root_node = ClassificationNode._recursive_build(
             structure=test_json["root"],
             save_ensembles=save_ensembles,
-            serializer=serializer
+            serializer=serializer,
+            **kwargs
         )
 
         # Verbose Messages:
@@ -888,7 +892,7 @@ class ClassificationNode(Serializer, Deserializer):
         return root_node
     
     @staticmethod
-    def _recursive_build(structure:dict, save_ensembles:bool=True, serializer:callable=None) -> 'ClassificationNode':
+    def _recursive_build(structure:dict, save_ensembles:bool=True, serializer:callable=None, **kwargs) -> 'ClassificationNode':
         # Building The Sub Nodes in Each Branch:
         branches = {}
         for branch in structure["branches"].keys():
@@ -900,7 +904,8 @@ class ClassificationNode(Serializer, Deserializer):
                 sub_node = ClassificationNode._recursive_build(
                     structure=sub_node_structure,
                     save_ensembles=save_ensembles,
-                    serializer=serializer
+                    serializer=serializer,
+                    **kwargs
                 )
                 
                 # Adding Built Node to Branches:
@@ -918,6 +923,7 @@ class ClassificationNode(Serializer, Deserializer):
             branches=branches,
             save_ensembles=save_ensembles,
             serializer=serializer,
+            **kwargs
         )
 
         # Returning This Node:
