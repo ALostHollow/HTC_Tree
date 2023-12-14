@@ -81,6 +81,10 @@ class Deserializer:
 
 # An Ensemble of the lower models
 class Ensemble(Serializer, Deserializer):
+    '''
+    This class represents an Ensemble of weak learners.
+    The given list of Weak Learners should all be in the format of the stock_model_wrappers classes.
+    '''
     # Class Method Overloads:
     def __init__(self, models:list[type(any)]) -> None:
         # Validating 'models' parameter types:
@@ -338,6 +342,10 @@ class Ensemble(Serializer, Deserializer):
 
 # A node in the hierarchy:
 class ClassificationNode(Serializer, Deserializer):
+    '''
+    This class represents a node in the HTC Tress.
+    It contains an Ensemble().
+    '''
     # Class Method Overloads:
     def __init__(self, prediction_title:str, input_column:str, ensemble:Ensemble=None, ensemble_path:str=None, node_id:str=None, branches:dict=None, save_ensembles:bool=True, serializer:callable=None, **kwargs):
         '''
@@ -501,6 +509,12 @@ class ClassificationNode(Serializer, Deserializer):
 
 
     def gernate_design(self, **kwargs) -> dict:
+        '''
+        This function returns a design file that can be used to rebuild this structure.
+        kwargs are placed in the design file for use in build_from_json().
+
+        Returns a dict that represents a design file json.
+        '''
         design = {
             "root": self._recursive_generate_design()
         }
@@ -761,6 +775,28 @@ class ClassificationNode(Serializer, Deserializer):
        
         # return <train_flag>s
         return flag_list
+
+
+    def needs_training(self) -> bool:
+        '''
+        Will return True if any Ensemble()s' <train_flag>  attribute is True and False otherwise.
+        
+        Args:
+            None
+        
+        Returns:
+            (bool) True if any Ensembles need training, False otherwise.
+        '''
+
+        if self.ensemble.train_flag:
+            return True
+        else:
+            for branch in self.branches.keys():
+                for node in self.branches[branch]:
+                    if node.needs_training():
+                        return True
+                   
+        return False
 
 
     def update_from_json(self, file_path:str, verbose:bool=False) -> None:

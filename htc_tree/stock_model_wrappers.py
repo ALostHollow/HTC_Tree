@@ -17,12 +17,16 @@ class SKLearn_Model_Wrapper():
 
     This class should be replaced with classes supporting other models with these same key methods:
     1. Train
-      - data: (pd.DataFrame) the data
+      - features:   (pd.DataFrame | list | np.array) the features to train off of
+      - targets:    (pd.DataFrame | list | np.array) the labels to train to predict
+      - **kwargs:   any additional key word arguments to pass to your wrapper's Train function.
+                    If you plan to use kwargs in a custom serializer, your 
+                    Train function should not expand these kwargs in the 
+                    function definition, parse them inside the function.
+    2. Predict:
       - 
-    2. score:
       - 
-      - 
-    3. Predict:
+    3. score:
       - 
       - 
     """
