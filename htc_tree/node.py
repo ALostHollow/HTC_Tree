@@ -405,7 +405,7 @@ class ClassificationNode(Serializer, Deserializer):
         Returns:
             None
         '''
-        self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
+        self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer, **kwargs)
         
         self._recursive_train(
             data=data, 
@@ -675,7 +675,7 @@ class ClassificationNode(Serializer, Deserializer):
         return data_list
     
 
-    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None) -> None:
+    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> None:
         '''
         Recursively sets all the Ensemble()'s <train_flag> attribute.
         Training or not training an Esemble() is decided based on the ensemble's attribute <train_flag>.
@@ -683,6 +683,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         Note:   <train_flag> is set to False when training that Ensemble finishes,
                 and set to True on instantiation.
+        Note:   <kwargs> are only passed to a given custom serializer.
 
         Args:
             force_true: (bool) if True, set all Ensembles <train_flag> to True
@@ -725,10 +726,10 @@ class ClassificationNode(Serializer, Deserializer):
 
         The <force_true> set of conditions are sorted out by passing this argument to _recursive_set_train_flags.
         '''
-        if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer):
+        if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs):
             if verbose: print(f"All models Trained, re-training all models.\n", flush=True)
             if not force_true:
-                self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
+                self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs)
 
     def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> set:
         # Sets own Ensemble() <train_flag> to True and saves if <save_on_train>:
@@ -738,7 +739,7 @@ class ClassificationNode(Serializer, Deserializer):
             # Save Ensemble:
             if save_on_train:
                 if serializer == None:
-                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
+                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose)
                 else:
                     serializer(self.ensemble, self.ensemble_path, **kwargs)
 
