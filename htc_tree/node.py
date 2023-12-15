@@ -147,26 +147,31 @@ class Ensemble(Serializer, Deserializer):
             training_start_time = time.time()
             if verbose: print(f"Training Learner {i + 1} of {len(self.models)}: {self.models[i].__repr__()}...", end=' ', flush=True) #/r - start of line
             
-            # Copy so that we can compare if previously trained:
-            temp_model = copy.deepcopy(self.models[i])
-            
-            # Train the temp model:
-            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
-
             # Get amount of spaces required to line up text:
             if verbose: spaces=(max_length - len(str(self.models[i].__repr__()))) * ' '
             
-            # Compare newly trained model:
-            if temp_model.score() > self.models[i].score():
-                if verbose: print(f"{spaces}New model was better     ({(time.time() - training_start_time):0.2f}s)", flush=True)
-                self.models[i] = temp_model
-            else:
-                if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
+            # Copy so that we can compare if previously trained:
+            temp_model = copy.deepcopy(self.models[i])
+            try:
+                # Train the temp model:
+                temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
+                
+                # Compare newly trained model:
+                if temp_model.score() > self.models[i].score():
+                    if verbose: print(f"{spaces}New model was better     ({(time.time() - training_start_time):0.2f}s)", flush=True)
+                    self.models[i] = temp_model
+                else:
+                    if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
+            except:
+                if verbose: print(f"{spaces}Failed to train.         ({(time.time() - training_start_time):0.2f}s)", flush=True)
 
         # Mark self as Ready for predictions and as not needing training:
-        self.ready = True
-        self.train_flag = False
-        self.single_class = None
+        # (Only if a model was successfully trained)
+        sum_of_scores = sum([model.score() for model in self.models])
+        if sum_of_scores > 0:
+            self.ready = True
+            self.train_flag = False
+            self.single_class = None
 
         # Build Report String:
         if verbose:
