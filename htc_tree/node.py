@@ -152,6 +152,7 @@ class Ensemble(Serializer, Deserializer):
             
             # Copy so that we can compare if previously trained:
             temp_model = copy.deepcopy(self.models[i])
+
             try:
                 # Train the temp model:
                 temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
@@ -162,6 +163,7 @@ class Ensemble(Serializer, Deserializer):
                     self.models[i] = temp_model
                 else:
                     if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
+
             except:
                 if verbose: print(f"{spaces}Failed to train.         ({(time.time() - training_start_time):0.2f}s)", flush=True)
 
@@ -557,7 +559,9 @@ class ClassificationNode(Serializer, Deserializer):
         if ((sqrt*sqrt) - sqrt) >= len(data): n_rows = sqrt - 1
         else: n_rows = sqrt
         n_rows = max(n_rows, 2) # minimum size of gride is 2x2
-
+        # size_adj = 40.0/(sqrt+2)
+        size_adj = 40.0/(sqrt+2)
+        
         # Create Graph
         fig, axes = plt.subplots(n_rows, sqrt, sharey='row')
         fig.suptitle('Weak Learner Test Accuracy Scores by Classification Node')
@@ -608,7 +612,7 @@ class ClassificationNode(Serializer, Deserializer):
             # Set title of Bar Graph:
             axes[row, col].set_title(
                 node_title + ' Weak Learners',
-                fontsize=5
+                fontsize= size_adj
             )
             
             # Style Axes:
@@ -624,8 +628,8 @@ class ClassificationNode(Serializer, Deserializer):
                     axes[row, col].annotate(
                         '{:.3f}'.format(height),
                         xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, -5),
-                        fontsize=4,
+                        xytext=(0, -6),
+                        fontsize= size_adj - 1,
                         textcoords="offset points",
                         ha='center', 
                         va='bottom',
