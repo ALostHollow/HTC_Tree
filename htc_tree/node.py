@@ -147,26 +147,33 @@ class Ensemble(Serializer, Deserializer):
             training_start_time = time.time()
             if verbose: print(f"Training Learner {i + 1} of {len(self.models)}: {self.models[i].__repr__()}...", end=' ', flush=True) #/r - start of line
             
-            # Copy so that we can compare if previously trained:
-            temp_model = copy.deepcopy(self.models[i])
-            
-            # Train the temp model:
-            temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
-
             # Get amount of spaces required to line up text:
             if verbose: spaces=(max_length - len(str(self.models[i].__repr__()))) * ' '
             
-            # Compare newly trained model:
-            if temp_model.score() > self.models[i].score():
-                if verbose: print(f"{spaces}New model was better     ({(time.time() - training_start_time):0.2f}s)", flush=True)
-                self.models[i] = temp_model
-            else:
-                if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
+            # Copy so that we can compare if previously trained:
+            temp_model = copy.deepcopy(self.models[i])
+
+            try:
+                # Train the temp model:
+                temp_model.Train(clean_data[self.train_features].astype(str), clean_data[self.train_targets].astype(str), **kwargs)
+                
+                # Compare newly trained model:
+                if temp_model.score() > self.models[i].score():
+                    if verbose: print(f"{spaces}New model was better     ({(time.time() - training_start_time):0.2f}s)", flush=True)
+                    self.models[i] = temp_model
+                else:
+                    if verbose: print(f"{spaces}New model was not better ({(time.time() - training_start_time):0.2f}s)", flush=True)
+
+            except:
+                if verbose: print(f"{spaces}Failed to train.         ({(time.time() - training_start_time):0.2f}s)", flush=True)
 
         # Mark self as Ready for predictions and as not needing training:
-        self.ready = True
-        self.train_flag = False
-        self.single_class = None
+        # (Only if a model was successfully trained)
+        sum_of_scores = sum([model.score() for model in self.models])
+        if sum_of_scores > 0:
+            self.ready = True
+            self.train_flag = False
+            self.single_class = None
 
         # Build Report String:
         if verbose:
@@ -405,7 +412,7 @@ class ClassificationNode(Serializer, Deserializer):
         Returns:
             None
         '''
-        self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer)
+        self._set_train_flags(force_true=force_retrain, save_on_train=save_on_train, verbose=verbose, serializer=serializer, **kwargs)
         
         self._recursive_train(
             data=data, 
@@ -552,7 +559,9 @@ class ClassificationNode(Serializer, Deserializer):
         if ((sqrt*sqrt) - sqrt) >= len(data): n_rows = sqrt - 1
         else: n_rows = sqrt
         n_rows = max(n_rows, 2) # minimum size of gride is 2x2
-
+        # size_adj = 40.0/(sqrt+2)
+        size_adj = 40.0/(sqrt+2)
+        
         # Create Graph
         fig, axes = plt.subplots(n_rows, sqrt, sharey='row')
         fig.suptitle('Weak Learner Test Accuracy Scores by Classification Node')
@@ -603,7 +612,7 @@ class ClassificationNode(Serializer, Deserializer):
             # Set title of Bar Graph:
             axes[row, col].set_title(
                 node_title + ' Weak Learners',
-                fontsize=5
+                fontsize= size_adj
             )
             
             # Style Axes:
@@ -619,8 +628,8 @@ class ClassificationNode(Serializer, Deserializer):
                     axes[row, col].annotate(
                         '{:.3f}'.format(height),
                         xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, -5),
-                        fontsize=4,
+                        xytext=(0, -6),
+                        fontsize= size_adj - 1,
                         textcoords="offset points",
                         ha='center', 
                         va='bottom',
@@ -675,7 +684,7 @@ class ClassificationNode(Serializer, Deserializer):
         return data_list
     
 
-    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None) -> None:
+    def _set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> None:
         '''
         Recursively sets all the Ensemble()'s <train_flag> attribute.
         Training or not training an Esemble() is decided based on the ensemble's attribute <train_flag>.
@@ -683,6 +692,7 @@ class ClassificationNode(Serializer, Deserializer):
 
         Note:   <train_flag> is set to False when training that Ensemble finishes,
                 and set to True on instantiation.
+        Note:   <kwargs> are only passed to a given custom serializer.
 
         Args:
             force_true: (bool) if True, set all Ensembles <train_flag> to True
@@ -725,10 +735,10 @@ class ClassificationNode(Serializer, Deserializer):
 
         The <force_true> set of conditions are sorted out by passing this argument to _recursive_set_train_flags.
         '''
-        if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer):
+        if True not in self._recursive_set_train_flags(force_true=force_true, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs):
             if verbose: print(f"All models Trained, re-training all models.\n", flush=True)
             if not force_true:
-                self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer)
+                self._recursive_set_train_flags(force_true=True, verbose=verbose, save_on_train=save_on_train, serializer=serializer, **kwargs)
 
     def _recursive_set_train_flags(self, force_true:bool=False, verbose:bool=False, save_on_train:bool=True, serializer:callable=None, **kwargs) -> set:
         # Sets own Ensemble() <train_flag> to True and saves if <save_on_train>:
@@ -738,7 +748,7 @@ class ClassificationNode(Serializer, Deserializer):
             # Save Ensemble:
             if save_on_train:
                 if serializer == None:
-                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose, **kwargs)
+                    self.ensemble.to_pickle(file_path=self.ensemble_path, overwite=True, verbose=verbose)
                 else:
                     serializer(self.ensemble, self.ensemble_path, **kwargs)
 
